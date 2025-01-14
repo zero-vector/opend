@@ -5672,6 +5672,157 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
             error(token.loc, format.ptr, start.ptr, param ? "declaration".ptr : condition.toChars());
     }
 
+
+    private AST.Dsymbols* parseIfInitializers() {
+        auto initializers = new AST.Dsymbols();
+        Identifier lastai;
+
+        while (1)
+        {
+
+            Identifier ai = null;
+            AST.Initializer ainit = null;
+            AST.Type at;
+            Loc aloc;
+
+            StorageClass storageClass = 0;
+            StorageClass stc = 0;
+
+            AST.UnpackDeclaration unpack = null;
+        Lagain:
+            if (stc)
+            {
+                storageClass = appendStorageClass(storageClass, stc);
+                nextToken();
+            }
+            switch (token.value)
+            {
+                case TOK.ref_:
+                    error("cannot declare `ref` variable");
+                    stc = STC.ref_;
+                    goto Lagain;
+
+                case TOK.scope_:
+                    stc = STC.scope_;
+                    goto Lagain;
+
+                case TOK.out_:
+                    error("cannot declare `out` variable");
+                    stc = STC.out_;
+                    goto Lagain;
+
+                case TOK.auto_:
+                    // error("cannot declare `auto` variable, omit `auto` to still get type inference");
+                    stc = STC.auto_;
+                    goto Lagain;
+
+                case TOK.enum_:
+                    stc = STC.manifest;
+                    goto Lagain;
+
+                case TOK.alias_:
+                    // storageClass = appendStorageClass(storageClass, STC.alias_);
+                    error("cannot declare `alias`");
+                    nextToken();
+                    break;
+
+                case TOK.const_:
+                    if (isTypeConstructor(&token))
+                        break;
+                    stc = STC.const_;
+                    goto Lagain;
+
+                case TOK.immutable_:
+                    if (isTypeConstructor(&token))
+                        break;
+                    stc = STC.immutable_;
+                    goto Lagain;
+
+                case TOK.shared_:
+                    if (isTypeConstructor(&token))
+                        break;
+                    stc = STC.shared_;
+                    goto Lagain;
+
+                // FIXME: error?
+                // case TOK.inout_:
+                //     if (isTypeConstructor(&token))
+                //         break;
+                //     stc = STC.wild;
+                //     goto Lagain;
+
+                default:
+                    break;
+            }
+
+            if (token.value == TOK.identifier)
+            {
+                const tv = peekNext();
+                if (tv == TOK.assign || tv == TOK.comma || tv == TOK.semicolon || tv == TOK.rightParenthesis)
+                {
+                    lastai = token.ident;
+                    ai = token.ident;
+                    at = null; // infer argument type
+                    aloc = token.loc;
+                    nextToken();
+                    goto Larg;
+                }
+            }
+            else if (token.value == TOK.leftParenthesis)
+            {
+                // FIXME: error?
+
+                TOK after = peekPastParen(&token).value;
+                if (after == TOK.assign || after == TOK.comma || after == TOK.semicolon)
+                {
+                    unpack = parseUnpackDeclaration(storageClass, true, false);
+                    ai = Identifier.generateId("__unpack");
+                    goto Larg;
+                }
+            }
+
+            at = parseType(&ai);
+            if (!ai)
+                noIdentifierForDeclarator(at);
+
+        Larg:
+
+            if (token.value == TOK.assign) {
+                nextToken();
+                ainit = parseInitializer();
+            }
+
+            if (unpack) {
+                initializers.push(unpack);
+            }
+            else {
+                auto vd = new AST.VarDeclaration(aloc, at, ai, ainit, storageClass);
+                initializers.push(vd);
+            }
+
+            if (token.value == TOK.comma)
+            {
+                nextToken();
+                continue;
+            }
+            break;
+        }
+
+        if (token.value != TOK.semicolon)
+        {
+            error("missing `; expression` before `)` of `if`");
+            nextToken();
+            // if (lastai && initializers.length >= 2)
+            // {
+            //     eSink.errorSupplemental(loc, "perhaps the `;` goes before `%s`", lastai.toChars());
+            // }
+            return null;
+        }
+        nextToken();
+
+        return initializers;
+    }
+
     /*****************************************
      * Parses `foreach` statements, `static foreach` statements and
      * `static foreach` declarations.
@@ -6444,8 +6595,63 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
             }
         case TOK.if_:
             {
+                AST.Statement _init;
+
                 nextToken();
                 check(TOK.leftParenthesis);
+
+                // Scan ahead to check for semicolon,
+                bool parseInitializers = false;
+                int parens = 1; // 1 as we are already in `if (`
+                int braces = 0;
+
+                // UpackDeclaration not starting with `(` and not `auto`
+                if (token.value == TOK.leftParenthesis) parens += 1;
+
+
+                Lfor:
+                for (auto t = peek(&token); 1; t = peek(t))
+                {
+                    // printf("%s\n", t.toChars());
+                    switch (t.value)
+                    {
+                        case TOK.leftParenthesis:
+                            parens++;
+                            continue;
+                        case TOK.rightParenthesis:
+                            parens--;
+                            if (parens == 0) break Lfor;
+                            continue;
+
+                        case TOK.leftCurly:
+                            braces++;
+                            continue;
+
+                        case TOK.rightCurly:
+                            braces--;
+                            continue;
+
+                        case TOK.semicolon:
+                            if (parens == 1 && braces == 0) {
+                                parseInitializers = true;
+                                break Lfor;
+                            }
+                            continue;
+
+                        case TOK.endOfFile:
+                            break Lfor;
+
+                        default:
+                            continue;
+                    }
+                }
+
+
+                AST.Dsymbols* initializers;
+                if (parseInitializers) {
+                    initializers = parseIfInitializers();
+                }
+
                 auto param = parseAssignCondition();
                 auto condition = parseExpression();
                 closeCondition("if", param, condition);
@@ -6465,8 +6671,9 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                 }
                 else
                     elsebody = null;
-                if (condition && ifbody)
-                    s = new AST.IfStatement(loc, param, condition, ifbody, elsebody, token.loc);
+                if (condition && ifbody) {
+                    s = new AST.IfStatement(loc, param, condition, ifbody, elsebody, token.loc, initializers);
+                }
                 else
                     s = null; // don't propagate parsing errors
                 break;
@@ -8279,7 +8486,7 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
     {
         auto loc = token.loc;
 
-        //printf("Parser::parseExpression() loc = %d\n", loc.linnum);
+        // printf("Parser::parseExpression() loc = %d\n", loc.linnum);
         auto e = parseAssignExp();
         while (token.value == TOK.comma)
         {

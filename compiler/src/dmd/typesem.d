@@ -493,7 +493,7 @@ Expression typeToExpression(Type t)
  *      tf = function type
  *      tthis = type of `this` pointer, null if not member function
  *      argumentList = arguments to function call
- *      flag = 1: performing a partial ordering match
+ *      flag = 1: performing a partial ordering match, 2: skip arguments without type
  *      pMessage = address to store error message, or null
  *      sc = context
  * Returns:
@@ -583,6 +583,11 @@ extern (D) MATCH callMatch(TypeFunction tf, Type tthis, ArgumentList argumentLis
         if (!arg)
             continue; // default argument
 
+        if (!arg.type && flag == 2) {
+            // NOTE(mojo): This can be be just me not knowing how to do the argument type infering correctly
+            continue; // For IfStatement _inits where argument can still be unknown (and we us callMatch for infering)
+        }
+
         Type tprm = p.type;
         Type targ = arg.type;
 
@@ -621,6 +626,12 @@ extern (D) MATCH callMatch(TypeFunction tf, Type tthis, ArgumentList argumentLis
             Expression arg = args[u];
             if (!arg)
                 continue; // default argument
+
+            if (!arg.type && flag == 2) {
+                // NOTE(mojo): This can be be just me not knowing how to do the argument type inferring correctly
+                continue; // For IfStatement _inits where argument can still be unknown (and we us callMatch for inferring)
+            }
+
             m = argumentMatchParameter(tf, p, arg, wildmatch, flag, sc, pMessage);
 
             if (m == MATCH.nomatch) {

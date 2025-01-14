@@ -2091,6 +2091,8 @@ struct ASTBase
 
     extern (C++) final class IfStatement : Statement
     {
+
+        Dsymbols* _inits; // if (init; cond)
         Parameter prm;
         Expression condition;
         Statement ifbody;
@@ -2106,6 +2108,18 @@ struct ASTBase
             this.ifbody = ifbody;
             this.elsebody = elsebody;
             this.endloc = endloc;
+            this._inits = null;
+        }
+
+        extern (D) this(const ref Loc loc, Parameter prm, Expression condition, Statement ifbody, Statement elsebody, Loc endloc, Parameters* _inits)
+        {
+            super(loc, STMT.If);
+            this.prm = prm;
+            this.condition = condition;
+            this.ifbody = ifbody;
+            this.elsebody = elsebody;
+            this.endloc = endloc;
+            this._inits = _inits;
         }
 
         override void accept(Visitor v)

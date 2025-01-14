@@ -1671,13 +1671,385 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
         /* https://dlang.org/spec/statement.html#IfStatement
          */
 
+        if (ifs._inits) {
+
+            /* Rewrite:
+                [scope_push] _inits; if(condition) { if_body; dtors for _inits} [scope_pop] else {}
+             */
+
+             // NOTE: New additional IfSatemene handling.
+             // if (auto var; foo(x)) ...
+             // Where `var`  is a VarDeclaration.
+             // If the declaration is `auto` without initializer, only one is allowed, for typed its arbitrary.
+             // Auto vars have to be type inferred by the function parameters, that can lead to false negatives,
+             // better matching is something we should just do.
+             // Match on name, but allow only `out` params
+             //
+             // DESIGN QUESTIONS:
+             //  * void init, or default init params? (for matched out params maybe woid ok?)
+             //  ...
+             // TODO:
+             //  -[ ] Ref vars (ref vars should be initialized to .init, out can be `voidInitialized` if they are PODs)
+             //  -[ ] Multiple auto vars
+             //  -[ ] Robust Error Handling:
+             //  -[ ] Better function matching
+             //  -[ ] Check all parameters for matching function for `out`
+             //  -[ ] Support for named arguments!
+             // FIXME:
+             //  -Method overload will match on first method, not check the rest.
+
+
+             // NOTE: We can not use ScopeStatement, because of `else if`, so we just pop sc
+             // and do the sfinally at end of ifbody
+            auto sym = new ScopeDsymbol();
+            sym.parent = sc.scopesym;
+            sym.endlinnum = ifs.endloc.linnum; // should be line of last ifbody statement?
+            sc = sc.push(sym);
+
+            auto initStmts = new Statements();
+
+            ptrdiff_t auto_param_idx = -1;
+
+            {
+                // NOTE: We allow only one `auto`, if more, it we will just error out.
+                //       THis has to be refactored if multiple `auto` vars are introduced!
+                int auto_param_cnt = 0;
+                foreach (i, _init; *ifs._inits) {
+
+                    auto ud = _init.isUnpackDeclaration();
+                    if (ud) {
+                        // FIXME
+                        // error(ifs.loc, "Sorry Unpack Declarations are not supported in `if` statement.");
+                        // return setError();
+
+                        continue;
+                    }
+
+                    auto vd = _init.isVarDeclaration();
+
+                    if (vd is null) {
+                        error(ifs.loc, "Only variable declarations are allowed as initializers in `if` statement.");
+                        return setError();
+                    }
+
+                    if (vd.storage_class & STC.auto_) {
+                        // auto without initializer means we need to try infering from function parameter
+                        if (vd._init is null) {
+                            auto_param_cnt += 1;
+                            auto_param_idx = i;
+                        }
+                    }
+                }
+
+                if (auto_param_cnt > 1) {
+                    // TODO: Error message proof read.
+                    error(ifs.loc, "Only one `auto` argument without initialization is allowed in `if` statement. Try to use explicit type.");
+                    return setError();
+                }
+            }
+
+
+            const type_infer_required = (auto_param_idx >= 0);
+            if (type_infer_required) {
+
+                assert(auto_param_idx < ifs._inits.length);
+
+                // FIXME: This is only true if we need to infer type from callExp parameters
+                auto call_exp = ifs.condition.isCallExp();
+                if (!call_exp) {
+                   // TODO: Error message proof read.
+                   error(ifs.loc, "Only call expression (functions) are allowed in `if` statement when using `auto` variable declaration.");
+                   return setError();
+                }
+
+                bool _tryInferType(FuncDeclaration fd, VarDeclaration var) {
+
+                    auto tf = fd.type.isTypeFunction();
+
+                    auto al = call_exp.argumentList();
+                    auto m = callMatch(tf, null, al, 2);
+
+                    if (m == MATCH.exact) {
+
+                        foreach (ai, a; *al.arguments) {
+                            const olderrors = global.startGagging();
+                            auto try_a = a.expressionSemantic(sc);
+                            global.endGagging(olderrors);
+
+                            auto tp = tf.parameterList[ai];
+
+                            // printf("| %s : %s\n", tp.toChars(), tp.type.toChars());
+
+                            if (try_a.type) {
+                                // printf("%s : %s\n", a.toChars(), try_a.type.toChars());
+                            }
+
+                            if (try_a.type != Type.terror && (try_a.type.constConv(tp.type) == 0)) {
+                                continue;
+                            }
+
+                            if (auto aid = a.isIdentifierExp) {
+
+                                if (aid.ident == var.ident) {
+
+                                    const is_out = tp.storageClass & STC.out_;
+
+                                    if (is_out) {
+
+                                        // printf("---> %s [%s]\n", a.toChars(), tp.type.toChars());
+
+                                        var.type = tp.type;
+                                        var.storage_class = STC.undefined_;
+
+                                        // TODO: Can this be VoidInitializer, if param is out?
+                                        var._init = new DefaultInitializer(ifs.loc);
+                                    }
+
+                                    // FIXME: Not break, but make this the candidate for type infer!
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (var.type) return true;
+                    }
+
+                    return false;
+                }
+
+                auto _tryMatchSymbol(Dsymbol dsym, VarDeclaration var) {
+
+                    if (!dsym) return;
+
+                    overloadApply(dsym, (Dsymbol s)
+                    {
+                        if (s.errors) return 0;
+
+                        if (auto fd = s.isFuncDeclaration()) {
+                            // FIXME: this matches first, but should error on ambiguity
+                            return _tryInferType(fd, var) ? 1 : 0;
+                        }
+                        else if (auto td = s.isTemplateDeclaration()) {
+                            if (td.members && td.members.length == 1) {
+
+                                if (auto fd = (*td.members)[0].isFuncDeclaration()) {
+
+                                    // printf("isFuncDeclaration: %s\n", fd.type.toChars());
+
+                                    // FIXME: this matches first, but should error on ambiguity
+                                    return _tryInferType(fd, var) ? 1 : 0;
+                                }
+                            }
+                        }
+
+                        return 0;
+                    }, sc);
+                }
+
+                // printf("%s [%d]\n", call_exp.e1.toChars(), call_exp.e1.op);
+
+                // THe parameter wi want to Infer from Arguments
+                auto auto_param = ((*ifs._inits)[auto_param_idx]).isVarDeclaration;
+                assert(auto_param !is null);
+
+                if (auto se = call_exp.e1.isScopeExp) {
+
+                    auto s = se.sds;
+                    s.dsymbolSemantic(sc);
+
+                    if (auto ti = s.isTemplateInstance) {
+
+                        // import dmd.root.devdebug;
+                        // Debug.InspectHard(i"$(s)");
+
+                        // Force sema on simple template instances
+                        if (ti.semanticRun == PASS.initial) {
+                            // auto e = se.expressionSemantic(sc);
+                        }
+
+                        // NOTE: THis is just by observation fo happy path.
+                        if (ti.semanticRun < PASS.semantic3)
+                        if (auto td = ti.tempdecl.isTemplateDeclaration) {
+                            // Debug.InspectHard(i"XXX $(td)");
+                            if (td.instances) {
+                                foreach (ti2; td.instances.values) {
+                                    if (ti2.equalsx(ti)) {
+                                        ti = ti2;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // import dmd.root.devdebug;
+                        // Debug.InspectHard(i"$(ti)");
+
+                        if (ti.members) {
+                            // Debug.InspectHard(i"$((*ti.members)[0])");
+                            if (auto fd = (*ti.members)[0].isFuncDeclaration()) {
+                                _tryInferType(fd, auto_param);
+                            }
+                        }
+                    }
+
+
+                }
+                else if (auto ie = call_exp.e1.isIdentifierExp) {
+                    // NOTE: Expecting a free standing function
+
+                    Identifier ident = ie.ident;
+                    // printf("isIdentifierExp: %s\n", ie.toChars());
+
+                    Dsymbol pscopesym;
+                    auto dsym = sc.search(ifs.loc, ident, pscopesym);
+                    if (dsym) _tryMatchSymbol(dsym, auto_param);
+
+                }
+                else if (auto dtie = call_exp.e1.isDotTemplateInstanceExp()) {
+                    // printf("isDotTemplateInstanceExp: %s\n", dtie.toChars());
+
+                    Expression ex = dtie.dotTemplateSemanticProp(sc, DotExpFlag.gag);
+                    // printf("B: %s (%d)\n", ex.toChars(), ex.op);
+
+                    if (ex) {
+                        if (auto dve = ex.isDotVarExp) {
+
+                            // Expanded to one FuncDeclaration, we can work with that
+                            if (auto fd = dve.var.isFuncDeclaration()) {
+                                _tryInferType(fd, auto_param);
+                            }
+                        }
+                        else if (auto dtie2 = ex.isDotTemplateInstanceExp) {
+                            // TODO
+
+                            // NOTE: Here be dragons!
+                            // printf("X: %s\n", dtie2.toChars());
+                            // dtie2.ti.templateInstanceSemantic(sc, call_exp.argumentList());
+
+                            if (dtie2.ti.semanticTiargs(sc))
+                            if (auto td = dtie2.ti.tempdecl.isTemplateDeclaration) {
+                                // TODO: Nicer message
+                                error(ifs.loc, "Sorry, argument type inference for templated functions with overloads is not implemented. Try to use explicit type instead of `auto`.");
+                                return setError();
+                            }
+
+                        }
+                    }
+
+                }
+                else if (auto die = call_exp.e1.isDotIdExp()) {
+
+                    // printf("isDotIdExp: %s\n", die.toChars());
+
+                    Identifier ident = die.ident;
+
+                    // printf("ident: %s\n", ident.toChars());
+
+                    Expression ex = die.e1.expressionSemantic(sc);
+                    // Expression ex = die.dotIdSemanticProp(sc, true);
+                    // printf("A: %s (%d)\n", ex.type.toChars(), ex.op);
+
+                    if (auto ad = isAggregate(ex.type)) {
+                        auto dsym = search_function(ad, ident);
+                        if (dsym) _tryMatchSymbol(dsym, auto_param);
+                    }
+
+                    // TODO: UFCS
+                }
+
+
+                // Check if we foud match, meaning we have a type for auto property, if not, add a hint about recall_exp.e1uirement of `out`
+                {
+                    if (!auto_param.type) {
+                        error(ifs.loc, "Unable to infer type for argument `%s` `auto` argument has to match an `out` parameter. Try to use explicit type instead of `auto`.", auto_param.ident.toChars);
+                        return setError();
+                    }
+                    else {
+                        // DEBUG
+                        // printf("Infering: auto %s => %s %s\n", auto_param.toChars(), auto_param.type.toChars(), auto_param.toChars());
+                    }
+                }
+
+            }
+
+
+            // Create var declarations from parameters.
+            foreach (i, _init; *ifs._inits) {
+
+                auto ud = _init.isUnpackDeclaration();
+                if (ud) {
+                    auto de = new DeclarationExp(ifs.loc, ud);
+                    auto stm = new ExpStatement(ifs.loc, de);
+                    initStmts.push(stm);
+
+                    continue;
+                }
+
+                auto vd = _init.isVarDeclaration();
+                assert(vd !is null);
+
+                // printf(">>> %s %s\n", vd.type.toChars(), vd.toChars());
+
+                auto de = new DeclarationExp(ifs.loc, vd);
+                auto ve = new VarExp(ifs.loc, vd);
+
+                Expression ce = new CommaExp(ifs.loc, de, ve);
+
+                auto stm = new ExpStatement(ifs.loc, ce);
+                initStmts.push(stm);
+
+            }
+
+
+            // Return new CompoundStatement that has the inits expanded, and the if statement.
+            // It keeps track of an scope used to keep _init vars in the if statement, not leeking to elsebody.
+            ifs._inits = null;
+            ifs.popScopeBeforeElse = true;
+
+
+            Statement cs = new CompoundStatement(ifs.loc, initStmts);
+            cs = cs.statementSemantic(sc);
+
+            if (cs)
+            {
+                if (cs.isErrorStatement())
+                {
+                    sc.pop();
+                    result = cs;
+                    return;
+                }
+
+                Statement sentry;
+                Statement sexception;
+                Statement sfinally;
+                cs = cs.scopeCode(sc, sentry, sexception, sfinally);
+                assert(!sentry);
+                assert(!sexception);
+                if (sfinally)
+                {
+                    sfinally = sfinally.statementSemantic(sc);
+                    ifs.ifbody = new CompoundStatement(ifs.loc, ifs.ifbody, sfinally);
+                }
+            }
+
+            cs = new CompoundStatement(ifs.loc, cs, ifs);
+            cs = cs.statementSemantic(sc);
+
+            result = cs;
+            return;
+
+        }
+
+        assert(ifs._inits is null);
+
         // check in syntax level
-        ifs.condition = checkAssignmentAsCondition(ifs.condition, sc);
+         ifs.condition = checkAssignmentAsCondition(ifs.condition, sc);
 
         auto sym = new ScopeDsymbol();
         sym.parent = sc.scopesym;
         sym.endlinnum = ifs.endloc.linnum;
         Scope* scd = sc.push(sym);
+
         if (ifs.prm)
         {
             /* Declare prm, which we will set to be the
@@ -1766,10 +2138,16 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
             ifs.ifbody = ifs.ifbody.semanticNoScope(scd);
         scd.pop();
 
+        if (ifs.popScopeBeforeElse) {
+            sc = sc.pop();
+        }
+
         CtorFlow ctorflow_then = sc.ctorflow;   // move flow results
         sc.ctorflow = ctorflow_root;            // reset flow analysis back to root
-        if (ifs.elsebody)
+
+        if (ifs.elsebody) {
             ifs.elsebody = ifs.elsebody.semanticScope(sc, null, null, null);
+        }
 
         // Merge 'then' results into 'else' results
         sc.merge(ifs.loc, ctorflow_then);

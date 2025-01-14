@@ -955,12 +955,17 @@ extern (C++) final class ForeachRangeStatement : Statement
  */
 extern (C++) final class IfStatement : Statement
 {
+    // Parameters* _inits; // if (init; cond)
+    Dsymbols* _inits;
+
     Parameter prm;
     Expression condition;
     Statement ifbody;
     Statement elsebody;
     VarDeclaration match;   // for MatchExpression results
     Loc endloc;                 // location of closing curly bracket
+
+    bool popScopeBeforeElse = false; // HACK, be better
 
     extern (D) this(const ref Loc loc, Parameter prm, Expression condition, Statement ifbody, Statement elsebody, Loc endloc) @safe
     {
@@ -970,6 +975,18 @@ extern (C++) final class IfStatement : Statement
         this.ifbody = ifbody;
         this.elsebody = elsebody;
         this.endloc = endloc;
+        this._inits = null;
+    }
+
+    extern (D) this(const ref Loc loc, Parameter prm, Expression condition, Statement ifbody, Statement elsebody, Loc endloc, Dsymbols* _inits) @safe
+    {
+        super(loc, STMT.If);
+        this.prm = prm;
+        this.condition = condition;
+        this.ifbody = ifbody;
+        this.elsebody = elsebody;
+        this.endloc = endloc;
+        this._inits = _inits;
     }
 
     override IfStatement syntaxCopy()
@@ -979,7 +996,9 @@ extern (C++) final class IfStatement : Statement
             condition.syntaxCopy(),
             ifbody ? ifbody.syntaxCopy() : null,
             elsebody ? elsebody.syntaxCopy() : null,
-            endloc);
+            endloc,
+            _inits ? Dsymbol.arraySyntaxCopy(_inits) : null,
+            );
     }
 
     override void accept(Visitor v)
