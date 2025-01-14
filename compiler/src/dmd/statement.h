@@ -381,6 +381,7 @@ public:
 class IfStatement final : public Statement
 {
 public:
+    Dsymbols* _inits;           // if (init; cond)
     Parameter *prm;
     Expression *condition;
     Statement *ifbody;

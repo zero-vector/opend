@@ -5770,8 +5770,6 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
             }
             else if (token.value == TOK.leftParenthesis)
             {
-                // FIXME: error?
-
                 TOK after = peekPastParen(&token).value;
                 if (after == TOK.assign || after == TOK.comma || after == TOK.semicolon)
                 {

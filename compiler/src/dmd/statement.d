@@ -955,15 +955,13 @@ extern (C++) final class ForeachRangeStatement : Statement
  */
 extern (C++) final class IfStatement : Statement
 {
-    // Parameters* _inits; // if (init; cond)
-    Dsymbols* _inits;
-
+    Dsymbols* _inits;       // if (init; cond)
     Parameter prm;
     Expression condition;
     Statement ifbody;
     Statement elsebody;
     VarDeclaration match;   // for MatchExpression results
-    Loc endloc;                 // location of closing curly bracket
+    Loc endloc;             // location of closing curly bracket
 
     bool popScopeBeforeElse = false; // HACK, be better
 
