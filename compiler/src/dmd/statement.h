@@ -389,6 +389,8 @@ public:
     VarDeclaration *match;      // for MatchExpression results
     Loc endloc;                 // location of closing curly bracket
 
+    bool popScopeBeforeElse = false; // HACK, be better
+
     IfStatement *syntaxCopy() override;
 
     void accept(Visitor *v) override { v->visit(this); }

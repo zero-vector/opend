@@ -1709,7 +1709,6 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
             auto initStmts = new Statements();
 
             ptrdiff_t auto_param_idx = -1;
-
             {
                 // NOTE: We allow only one `auto`, if more, it we will just error out.
                 //       THis has to be refactored if multiple `auto` vars are introduced!
@@ -1750,6 +1749,15 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
 
 
             const type_infer_required = (auto_param_idx >= 0);
+
+            // NOTE: Argument infer will be enabled in the future.
+            if (type_infer_required) {
+                error(ifs.loc, "Sorry, argument type inference is not yet implemented. Use explicit type instead of `auto`.");
+                return setError();
+            }
+
+
+            version(none) {
             if (type_infer_required) {
 
                 assert(auto_param_idx < ifs._inits.length);
@@ -1970,6 +1978,7 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
                     }
                 }
 
+            }
             }
 
 
