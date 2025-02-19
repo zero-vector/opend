@@ -4221,8 +4221,16 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
         arguments.push(makeNonTemplateItem(Id.InterpolationFooter));
 
+        uint errors = global.errors;
         auto loweredTo = new TupleExp(e.loc, arguments);
         visit(loweredTo);
+        if (global.errors != errors) {
+            // NOTE(mojo): This is iffy, can be a long strig, but maybe a `e.toChars` responsibility.
+            error(e.loc, "cannot evaluate Interpolated Expression Sequence `%s`", e.toChars());
+
+            // NOTE(mojo): This ends the compilation, but was not handled before, so idk
+            return setError();
+        }
 
         result = loweredTo;
     }
