@@ -3,26 +3,40 @@ import std.file;
 
 // FIXME: when we call spawnProcess it doesn't print an error (though it does return a code) when the process segfaults.
 
+// FIXME: tell people to install xpack if not already done when then use --target
+
+// FIXME mebbe i could make opend --src=path/to/opend/git/dir args.... pull the build versions out of there, that'd be kinda useful
+// hellit oculd even forward itself to the new opend program. hmmmmm
+
 int main(string[] args) {
 	// maybe override the normal config files
 	// --opend-config-file
 	// --opend-project-file
 	try {
-		if(args.length == 0) {
+		import std.algorithm;
+		string[] buildSpecificArgs;
+		string[] allOtherArgs;
+		foreach(arg; args)
+			if(arg.startsWith("--opend-to-build="))
+				buildSpecificArgs ~= arg["--opend-to-build=".length .. $];
+			else
+				allOtherArgs ~= arg;
+
+		if(allOtherArgs.length == 0) {
 			return 1; // should never happen...
-		} if(args.length == 1) {
+		} if(allOtherArgs.length == 1) {
 			return Commands.run(null);
-		} else switch(args[1]) {
+		} else switch(allOtherArgs[1]) {
 			foreach(memberName; __traits(allMembers, Commands))
 				case memberName:
-					return __traits(getMember, Commands, memberName)(args[2 .. $]);
+					return __traits(getMember, Commands, memberName)(buildSpecificArgs ~ allOtherArgs[2 .. $]);
 			case "-h", "--help":
 				import std.stdio, std.string;
 				foreach(memberName; __traits(allMembers, Commands))
 					writeln(memberName, "\n\t", strip(__traits(docComment, __traits(getMember, Commands, memberName))));
 				return 0;
 			default:
-				return Commands.build(args[1 .. $]);
+				return Commands.build(buildSpecificArgs ~ allOtherArgs[1 .. $]);
 		}
 	} catch (Throwable e) {
 		import std.stdio;
@@ -42,10 +56,11 @@ struct Commands {
 				writeln(memberName, "\n\t", strip(__traits(docComment, __traits(getMember, Commands, memberName))));
 			return 1;
 		}
-		if(auto err = build(args))
-			return err;
 
 		auto oe = getOutputExecutable(args);
+
+		if(auto err = build(oe.buildArgs))
+			return err;
 
 		return spawnProcess([oe.exe] ~ oe.args, [
 			"LD_LIBRARY_PATH": getRuntimeLibPath()
@@ -54,12 +69,12 @@ struct Commands {
 
 	/// Builds the code and runs its unittests
 	int test(string[] args) {
-		return run(["-unittest", "-main"] ~ args);
+		return run(["-unittest", "-main", "-checkaction=context"] ~ args);
 	}
 
-	/// Builds the code and runs unittests but only for files explicitly listed
+	/// Builds the code and runs unittests but only for files explicitly listed, not auto-imported files
 	int testOnly(string[] args) {
-		return run(["-unittest=explicit", "-main"] ~ args);
+		return run(["-unittest=explicit", "-main", "-checkaction=context"] ~ args);
 	}
 
 	/// Performs quick syntax and semantic tests, without performing code generation
@@ -83,6 +98,17 @@ struct Commands {
 		string[] argsToKeep;
 		argsToKeep.reserve(args.length);
 
+		int warnAboutXpack(string which) {
+			import std.path, std.file;
+			if(!std.file.exists(getXpackPath() ~ "opend-latest-" ~ which)) {
+				import std.stdio;
+				stderr.writeln("Error: the support files for this target is not found.");
+				stderr.writeln("Try `opend install " ~ which ~ "` first");
+				return 1;
+			}
+			return 0;
+		}
+
 		int translateTarget(string target) {
 			import std.string;
 
@@ -98,6 +124,8 @@ struct Commands {
 						cpu = "x86_64";
 						os = "windows";
 						detail = "msvc";
+						if(auto r = warnAboutXpack("xpack-win64"))
+							return r;
 					break;
 					case "mac":
 					case "macos":
@@ -149,6 +177,8 @@ struct Commands {
 						detail = "musl";
 					break;
 					case "emscripten":
+						if(auto r = warnAboutXpack("xpack-emscripten"))
+							return r;
 						os = "emscripten";
 						if(cpu is null) cpu = "wasm32";
 					break;
@@ -383,32 +413,61 @@ string getXpackPath() {
 struct OutputExecutable {
 	string exe;
 	string[] args;
+	string[] buildArgs;
 }
 
 OutputExecutable getOutputExecutable(string[] args) {
 	// FIXME: make sure we have the actual output name here... maybe should ask the compiler itself
 	size_t splitter = args.length;
+	size_t buildArgsSplitter = args.length;
+	string first;
 	string name;
+	string extension;
+	bool nameExplicitlyGiven = false;
+	version(Windows)
+		extension = ".exe";
+
 	foreach(idx, arg; args) {
 		if(arg == "--") {
+			buildArgsSplitter = idx;
 			splitter = idx + 1;
 			break;
 		}
 		if(arg.length > 1 && arg[0] == '-') {
 			if(arg.length > 3 && arg[0 .. 3] == "-of") {
 				name = arg[3 .. $];
+				extension = null;
+				nameExplicitlyGiven = true;
 				break;
+			}
+			if(arg == "-lib") {
+				version(Windows)
+					extension = ".lib";
+				else
+					extension = ".a";
+			}
+			if(arg == "-shared") {
+				version(Windows)
+					extension = ".dll";
+				else version(OSX)
+					extension = ".dylib";
+				else
+					extension = ".so";
 			}
 			continue;
 		} else {
 			import std.path;
-			name = arg.stripExtension;
-			break;
+			if(first is null) {
+				first = arg.stripExtension;
+			}
 		}
 	}
 
+	if(!nameExplicitlyGiven)
+		name = first ~ extension;
+
 	import std.path;
-	return OutputExecutable(buildPath(".", name), args[splitter .. $]);
+	return OutputExecutable(buildPath(".", name), args[splitter .. $], args[0 .. buildArgsSplitter]);
 }
 
 void downloadXpack(string which) {
