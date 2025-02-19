@@ -4213,7 +4213,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 Expressions* mix = new Expressions();
                 mix.push(new StringExp(e.loc, str));
                 // FIXME: i'd rather not use MixinExp but idk how to do it lol
-                arguments.push(new MixinExp(e.loc, mix));
+                auto mix_exp = new MixinExp(e.loc, mix);
+                mix_exp.isIES = true;
+                arguments.push(mix_exp);
             }
         }
 
@@ -7598,7 +7600,10 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         const len = buf.length;
         const str = buf.extractChars()[0 .. len];
         const bool doUnittests = global.params.parsingUnittestsRequired();
-        auto loc = adjustLocForMixin(str, exp.loc, global.params.mixinOut);
+
+        // Id the MixinExp is build from IES we want a nicer hide this from user, as the mixin is implicit and confusing.
+        auto loc = (exp.isIES) ? exp.loc : adjustLocForMixin(str, exp.loc, global.params.mixinOut);
+
         scope p = new Parser!ASTCodegen(loc, sc._module, str, false, global.errorSink, &global.compileEnv, doUnittests);
         p.transitionIn = global.params.v.vin;
         p.allowPrivateThis = true;

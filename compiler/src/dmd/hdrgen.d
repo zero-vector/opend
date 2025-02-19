@@ -237,6 +237,7 @@ private void statementToBuffer(Statement s, ref OutBuffer buf, ref HdrGenState h
 
     void visitMixin(MixinStatement s)
     {
+
         buf.writestring("mixin(");
         argsToBuffer(s.exps, buf, hgs, null);
         buf.writestring(");");
@@ -2600,9 +2601,44 @@ private void expressionPrettyPrint(Expression e, ref OutBuffer buf, ref HdrGenSt
 
     void visitMixin(MixinExp e)
     {
-        buf.writestring("mixin(");
-        argsToBuffer(e.exps, buf, hgs, null);
-        buf.writeByte(')');
+
+        if (e.isIES) {
+
+            // We wan to write the string without quotes, so we can not use standard printers.
+            buf.writestring("IES: $");
+            buf.writeByte('(');
+
+            assert(e.exps.length == 1, "IES expect only one expression in mixin.");
+
+            auto me = (*e.exps)[0];
+            if (auto se = me.isStringExp())
+            {
+                const o = buf.length;
+                foreach (i; 0 .. se.len)
+                {
+                    writeCharLiteral(buf, se.getCodeUnit(i));
+                }
+
+                // NOTE: Special case this? idk
+                if (hgs.ddoc)
+                    escapeDdocString(buf, o);
+
+                // TODO: assert on se.postfix? This hould never happen.
+            }
+            else
+            {
+                assert(0, "IES not a StringExp");
+            }
+
+            buf.writeByte(')');
+        }
+        else {
+            buf.writestring("mixin(");
+            argsToBuffer(e.exps, buf, hgs, null);
+            buf.writeByte(')');
+        }
+
+
     }
 
     void visitImport(ImportExp e)

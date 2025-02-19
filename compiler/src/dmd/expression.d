@@ -348,6 +348,7 @@ extern (C++) /* IN_LLVM abstract */ class Expression : ASTNode
     Loc loc;        // file location
     const EXP op;   // to minimize use of dynamic_cast
 
+    // NOTE(mojo) looks like I like to add flags (MixinExp.isIES), so this should prolly be a ubyte
     bool ctfe = false; // TODO: bake this byte flag or move to relevant Expressions
 
     extern (D) this(const ref Loc loc, EXP op) scope @safe
@@ -3244,6 +3245,7 @@ extern (C++) class BinAssignExp : BinExp
 extern (C++) final class MixinExp : Expression
 {
     Expressions* exps;
+    bool isIES = false;
 
     extern (D) this(const ref Loc loc, Expressions* exps) @safe
     {
@@ -3253,18 +3255,27 @@ extern (C++) final class MixinExp : Expression
 
     override MixinExp syntaxCopy()
     {
-        return new MixinExp(loc, arraySyntaxCopy(exps));
+        auto copy = new MixinExp(loc, arraySyntaxCopy(exps));
+        copy.isIES = this.isIES;
+
+        return copy;
     }
+
 
     override bool equals(const RootObject o) const
     {
         if (this == o)
             return true;
+
+
         auto e = o.isExpression();
         if (!e)
             return false;
         if (auto ce = e.isMixinExp())
         {
+            if (this.isIES != ce.isIES)
+                return false;
+
             if (exps.length != ce.exps.length)
                 return false;
             foreach (i, e1; *exps)
