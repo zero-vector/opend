@@ -5679,6 +5679,9 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
         auto initializers = new AST.Dsymbols();
         Identifier lastai;
 
+        AST.Type lastExplicitAt = null;
+        StorageClass lastExplicitStorageClass = 0;
+
         while (1)
         {
 
@@ -5785,6 +5788,8 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
             if (!ai)
                 noIdentifierForDeclarator(at);
 
+            lastExplicitAt = at;
+
         Larg:
 
             if (token.value == TOK.assign) {
@@ -5796,8 +5801,39 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                 initializers.push(unpack);
             }
             else {
+
+                // NOTE(mojo) : We diverge a little bit from normal
+
+                if (!ai) {
+                    noIdentifierForDeclarator(at);
+                    break;
+                }
+
+                printf("%s = %llu\n", ai.toChars(), storageClass);
+
+                if (!at) at = lastExplicitAt;
+                if (storageClass == 0) storageClass = lastExplicitStorageClass;
+
+                if (!at && !ainit) {
+                    // FIXME: at least auto, but this is trash
+                    if (!(storageClass & (STC.auto_ | STC.const_ | STC.immutable_))) {
+                        error("TODO: [message-that-make-sense] `%s`", ai.toChars());
+                        nextToken();
+                        return null;
+                    }
+                }
+
+                // // printf("%s %s = %s", at.toChars(), ai.toChars(), ainit.toChars());
+
+
+                // if (at) {
+                //     printf("%s = %s\n", ai.toChars(), at.toChars());
+                // }
+
                 auto vd = new AST.VarDeclaration(aloc, at, ai, ainit, storageClass);
                 initializers.push(vd);
+
+                lastExplicitStorageClass = storageClass;
             }
 
             if (token.value == TOK.comma)
