@@ -5809,7 +5809,7 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                     break;
                 }
 
-                printf("%s = %llu\n", ai.toChars(), storageClass);
+                // printf("%s = %llu\n", ai.toChars(), storageClass);
 
                 if (!at) at = lastExplicitAt;
                 if (storageClass == 0) storageClass = lastExplicitStorageClass;
