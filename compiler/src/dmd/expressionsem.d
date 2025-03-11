@@ -13359,6 +13359,43 @@ version (IN_LLVM)
         }
         Type t1 = exp.e1.type.toBasetype();
         Type t2 = exp.e2.type.toBasetype();
+
+        const signednes_diff = t1.isunsigned() ^ t2.isunsigned();
+
+        if (signednes_diff) {
+
+            // Allow, if both values are known at CT and both are positive.
+            {
+                auto i1 = exp.e1.isIntegerExp;
+                auto i2 = exp.e2.isIntegerExp;
+                if (i1 && i2) {
+                    if (t1.isunsigned()) {
+                        if (t2.ty == TY.Tint64) if ((cast(long)  i2.getInteger()) >= 0) goto IS_OK;
+                        if (t2.ty == TY.Tint32) if ((cast(int)   i2.getInteger()) >= 0) goto IS_OK;
+                        if (t2.ty == TY.Tint16) if ((cast(short) i2.getInteger()) >= 0) goto IS_OK;
+                        if (t2.ty == TY.Tint8 ) if ((cast(byte)  i2.getInteger()) >= 0) goto IS_OK;
+                    }
+                    else if (t2.isunsigned()) {
+                        if (t1.ty == TY.Tint64) if ((cast(long)  i1.getInteger()) >= 0) goto IS_OK;
+                        if (t1.ty == TY.Tint32) if ((cast(int)   i1.getInteger()) >= 0) goto IS_OK;
+                        if (t1.ty == TY.Tint16) if ((cast(short) i1.getInteger()) >= 0) goto IS_OK;
+                        if (t1.ty == TY.Tint8 ) if ((cast(byte)  i1.getInteger()) >= 0) goto IS_OK;
+                    }
+                }
+                else if (i1) {
+                    if (t2.isunsigned()) if ((cast(long)  i1.getInteger()) >= 0) goto IS_OK;
+                }
+                else if (i2) {
+                    if (t1.isunsigned()) if ((cast(long)  i2.getInteger()) >= 0) goto IS_OK;
+                }
+            }
+
+            sc.setUnsafe(false, exp.loc, "comparison of integer expressions of different signedness `%s` (`%s`,`%s`) not allowed in `@safe` code", exp, t1, t2, true);
+
+            IS_OK:
+        }
+
+
         if (t1.ty == Tclass && exp.e2.op == EXP.null_ || t2.ty == Tclass && exp.e1.op == EXP.null_)
         {
             error(exp.loc, "do not use `null` when comparing class types");

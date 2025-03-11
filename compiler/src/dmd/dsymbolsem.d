@@ -7055,6 +7055,7 @@ version (IN_LLVM)
     Scope* sc2;
     sc2 = _scope.push(tempinst);
     //printf("enclosing = %d, sc.parent = %s\n", tempinst.enclosing, sc.parent.toChars());
+    sc2.func = sc.func; // For @safe checks.
     sc2.parent = tempinst;
     sc2.tinst = tempinst;
     sc2.minst = tempinst.minst;
