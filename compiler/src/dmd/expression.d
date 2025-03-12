@@ -3266,11 +3266,9 @@ extern (C++) final class MixinExp : Expression
     {
         if (this == o)
             return true;
-
         auto e = o.isExpression();
         if (!e)
             return false;
-        
         if (auto ce = e.isMixinExp())
         {
             if (this.isIES != ce.isIES)
