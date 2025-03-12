@@ -747,6 +747,7 @@ public:
 class MixinExp final : public UnaExp
 {
 public:
+    d_bool isIES;
     void accept(Visitor *v) override { v->visit(this); }
 };
 

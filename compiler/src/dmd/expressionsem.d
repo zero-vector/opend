@@ -7609,7 +7609,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         const str = buf.extractChars()[0 .. len];
         const bool doUnittests = global.params.parsingUnittestsRequired();
 
-        // Id the MixinExp is build from IES we want a nicer hide this from user, as the mixin is implicit and confusing.
+        // If the MixinExp is build from IES we want a nicer hide this from user, as the mixin is implicit and confusing.
         auto loc = (exp.isIES) ? exp.loc : adjustLocForMixin(str, exp.loc, global.params.mixinOut);
 
         scope p = new Parser!ASTCodegen(loc, sc._module, str, false, global.errorSink, &global.compileEnv, doUnittests);

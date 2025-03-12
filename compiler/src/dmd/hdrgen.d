@@ -2603,7 +2603,7 @@ private void expressionPrettyPrint(Expression e, ref OutBuffer buf, ref HdrGenSt
     {
         if (e.isIES) {
 
-            // We wan to write the string without quotes, so we can not use standard printers.
+            // We want to write the string without quotes, so we can not use standard printers.
             buf.writestring("IES: $");
             buf.writeByte('(');
 
