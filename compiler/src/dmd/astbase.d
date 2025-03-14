@@ -3972,6 +3972,7 @@ struct ASTBase
             incomplete      = 0x0200, // return type or default arguments removed
             inoutParam      = 0x0400, // inout on the parameters
             inoutQual       = 0x0800, // inout on the qualifier
+            isctfeonly      = 0x1000, // is @ctfeonly
         }
 
         LINK linkage;               // calling convention
@@ -4005,6 +4006,8 @@ struct ASTBase
                 this.isreturn = true;
             if (stc & STC.scope_)
                 this.isScopeQual = true;
+            else if (stc & STC.ctfeonly)
+                this.isCtfeOnly = true;
 
             this.trust = TRUST.default_;
             if (stc & STC.safe)
@@ -4034,6 +4037,7 @@ struct ASTBase
             t.isInOutQual = isInOutQual;
             t.trust = trust;
             t.fargs = fargs;
+            t.isCtfeOnly = isCtfeOnly;
             return t;
         }
 
@@ -4185,6 +4189,18 @@ struct ASTBase
         {
             return (funcFlags & (FunctionFlag.inoutParam | FunctionFlag.inoutQual)) != 0;
         }
+
+        bool isCtfeOnly() const pure nothrow @safe @nogc
+        {
+            return (funcFlags & FunctionFlag.isctfeonly) != 0;
+        }
+
+        void isCtfeOnly(bool v) pure nothrow @safe @nogc
+        {
+            if (v) funcFlags |= FunctionFlag.isctfeonly;
+            else funcFlags &= ~FunctionFlag.isctfeonly;
+        }
+
 
         override void accept(Visitor v)
         {
@@ -6960,6 +6976,7 @@ struct ASTBase
             SCstring(STC.disable, "@disable"),
             SCstring(STC.future, "@__future"),
             SCstring(STC.local, "__local"),
+            SCstring(STC.ctfeonly, "@ctfeonly"),
         ];
         foreach (ref entry; table)
         {

@@ -2187,6 +2187,64 @@ private bool checkNogc(FuncDeclaration f, ref Loc loc, Scope* sc)
     return false;
 }
 
+
+/*********************************************
+ * Calling function f.
+ * Check the @ctfeonly
+ *
+ * Returns true if error occurs.
+ */
+private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool fIsAliasParam) {
+
+    if ((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock))) return false;
+
+    auto fTy = f.type.toTypeFunction();
+    if (!fTy) {
+        warning(loc, "callee %s is not a function?", f.toPrettyChars());
+        return false;
+    }
+
+    if (!fTy.isCtfeOnly()) return false;
+
+    auto caller = sc.func;
+    if (!caller) {
+        error(loc, "cannot call @ctfeonly function %s from non-CTFE context", f.toPrettyChars());
+        return true;
+    }
+
+    auto callerTy = caller.type.toTypeFunction();
+    if (!callerTy) {
+        warning(loc, "caller %s is not a function?", caller.toPrettyChars());
+        return false;
+    }
+
+    if (callerTy.isCtfeOnly()) {
+        f.skipCodegen = true; // NOTE: is this "safe" to do?
+        return false;
+    }
+
+    if (fIsAliasParam && caller.isInstantiated()) {
+        callerTy.isCtfeOnly = true;
+        callerTy.ctfeOnlyInferReason = f;
+        return false;
+    }
+
+    if (fTy.isCtfeOnly && caller.isInstantiated()) {
+        callerTy.isCtfeOnly = true;
+        callerTy.ctfeOnlyInferReason = f;
+        return false;
+    }
+
+    // error(loc, "`%s` may only be used for CTFE", f.toChars());
+
+    error(loc, "cannot call `@ctfeonly` function %s from non-@ctfeonly function %s", f.toPrettyChars(), sc.func.toPrettyChars());
+    if (callerTy.ctfeOnlyInferReason) {
+        errorSupplemental(loc, "%s was inferred to be `@ctfeonly` because it calls %s\n", f.toPrettyChars(), callerTy.ctfeOnlyInferReason.toPrettyChars());
+    }
+    return true;
+
+}
+
 /********************************************
  * Check that the postblit is callable if t is an array of structs.
  * Returns true if error happens.
@@ -5739,26 +5797,83 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             printf("CallExp::semantic() %s\n", exp.toChars());
         }
 
-        scope(exit) {
-            // WIP: Im not ina  mood to track where this makes sense.
-            if (exp && exp.f) {
-                if (exp.f.builtin == 0)
-                if (((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock)) == 0) && exp.f.skipCodegen) {
-                    error(exp.loc, "`%s` may only be used for CTFE", exp.toChars());
-                }
-            }
-        }
-
         if (exp.type)
         {
             result = exp;
             return; // semantic() already run
         }
 
+
+
         Objects* tiargs = null; // initial list of template arguments
         Expression ethis = null;
         Type tthis = null;
         Expression e1org = exp.e1;
+
+        bool fIsAliasParam = false;
+
+        /+
+        scope(exit) {
+            // WIP: Im not ina  mood to track where this makes sense.
+            // if (exp && exp.f) {
+            //     if (((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock)) == 0) && exp.f.isCtfeOnly) {
+            //         printf("sc.flags : %08x\n", sc.flags);
+            //         error(exp.loc, "`%s` may only be used for CTFE", exp.toChars());
+            //     }
+            // }
+
+            // if (e1org == exp.e1)
+            if (exp && exp.f) {
+                if (exp.f.isCtfeOnly) {
+                    // if (sc.func) {
+                    //     printf("hohoho\n");
+                    // }
+
+                    // bool inCtfe = false;
+                    // for (Scope* _sc = sc; _sc; _sc = _sc.enclosing)
+                    // {
+                    //     if (!_sc.scopesym)
+                    //         continue;
+
+                    //     if (_sc.flags & SCOPE.ctfe) {
+                    //         inCtfe = true;
+                    //         break;
+                    //     }
+                    // }
+
+                    // if (auto caller = sc.func) {
+                    //     if (fIsAliasParam && caller.isInstantiated()) {
+                    //         printf("caller : isCtfeOnly : %s\n", caller.toChars());
+                    //         printf("CallExp : isCtfeOnly : %s : %08x\n", exp.toChars(), sc.flags);
+
+                    //         caller.isCtfeOnly = true;
+                    //     }
+                    //     else {
+                    //         if (((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock)) == 0) && exp.f.isCtfeOnly) {
+                    //              error(exp.loc, "`%s` may only be used for CTFE", exp.toChars());
+                    //         }
+                    //     }
+                    // }
+
+                    // if (fIsAliasParam) {
+                    //     auto caller = sc.func;
+                    //     if (caller) {
+                    //         printf("caller : `%s`\n", caller.toChars());
+                    //         caller.isCtfeOnly = true;
+                    //     }
+                    // }
+                    else
+                    {
+
+                        // if (((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock)) == 0) && exp.f.isCtfeOnly) {
+                        //      // printf("sc.flags : %08x\n", sc.flags);
+                        //      error(exp.loc, "`%s` may only be used for CTFE", exp.toChars());
+                        // }
+                    }
+                }
+            }
+        }
+        +/
 
         if (auto ce = exp.e1.isCommaExp())
         {
@@ -5804,6 +5919,20 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         {
             result = ex;
             return;
+        }
+
+        // NOTE: Credit to https://github.com/dlang/dmd/pull/20858/files#diff-a556a8e6917dd4042f541bdb19673f96940149ec3d416b0156af4d0e4cc5e4bd
+        // That's a hacky way to check if exp.e1 is an alias template parameter.
+        // I found that such aliases have parent == null, but I'm not sure if
+        // this guarantees that it's a template parameter.
+        if (IdentifierExp ie = exp.e1.isIdentifierExp()) {
+            Dsymbol parentSc;
+            Dsymbol s = sc.search(ie.loc, ie.ident, parentSc);
+            if (s) {
+                if (auto ae = s.isAliasDeclaration()) {
+                    if (!ae.parent) fIsAliasParam = true;
+                }
+            }
         }
 
         /* This recognizes:
@@ -6299,7 +6428,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             }
 
             if (!exp.ignoreAttributes)
-                checkFunctionAttributes(exp, sc, exp.f);
+                checkFunctionAttributes(exp, sc, exp.f, fIsAliasParam);
 
             // Cut-down version of checkAccess() that doesn't use the "most visible" version of exp.f.
             // We've already selected an overload here.
@@ -6438,7 +6567,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             if (!exp.f || exp.f.errors)
                 return setError();
 
-            checkFunctionAttributes(exp, sc, exp.f);
+            checkFunctionAttributes(exp, sc, exp.f, fIsAliasParam);
             checkAccess(exp.loc, sc, null, exp.f);
 
             exp.e1 = new DotVarExp(exp.e1.loc, exp.e1, exp.f, false);
@@ -6691,7 +6820,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 }
             }
 
-            checkFunctionAttributes(exp, sc, exp.f);
+            checkFunctionAttributes(exp, sc, exp.f, fIsAliasParam);
             checkAccess(exp.loc, sc, null, exp.f);
             if (exp.f.checkNestedReference(sc, exp.loc))
                 return setError();
@@ -16298,13 +16427,15 @@ bool checkAddressable(Expression e, Scope* sc)
  *  f   = function to be checked
  * Returns: `true` if error occur.
  */
-private bool checkFunctionAttributes(Expression exp, Scope* sc, FuncDeclaration f)
+private bool checkFunctionAttributes(Expression exp, Scope* sc, FuncDeclaration f, bool fIsAliasParam = false)
 {
     bool error = f.checkDisabled(exp.loc, sc);
     error |= f.checkDeprecated(exp.loc, sc);
     error |= f.checkPurity(exp.loc, sc);
     error |= f.checkSafety(exp.loc, sc);
     error |= f.checkNogc(exp.loc, sc);
+    error |= f.checkCtfeOnly(exp.loc, sc, fIsAliasParam);
+
     return error;
 }
 

@@ -111,10 +111,12 @@ enum STC : ulong  // transfer changes to declaration.h
     register            = 0x20_0000_0000_0000,   /// `register` storage class (ImportC)
     volatile_           = 0x40_0000_0000_0000,   /// destined for volatile in the back end
 
+    ctfeonly            = 0x80_0000_0000_0000,   /// destined for volatile in the back end
+
     safeGroup = STC.safe | STC.trusted | STC.system,
     IOR  = STC.constscoperef | STC.in_ | STC.ref_ | STC.out_,
     TYPECTOR = (STC.const_ | STC.immutable_ | STC.shared_ | STC.wild),
-    FUNCATTR = (STC.ref_ | STC.nothrow_ | STC.nogc | STC.pure_ | STC.property | STC.live |
+    FUNCATTR = (STC.ref_ | STC.nothrow_ | STC.nogc | STC.pure_ | STC.property | STC.live | STC.ctfeonly |
                 safeGroup),
 
     /* These are visible to the user, i.e. are expressed by the user

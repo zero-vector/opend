@@ -52,6 +52,7 @@ import dmd.target;
 import dmd.tokens;
 import dmd.typesem;
 import dmd.visitor;
+import dmd.func;
 
 enum LOGDOTEXP = 0;         // log ::dotExp()
 enum LOGDEFAULTINIT = 0;    // log ::defaultInit()
@@ -3955,6 +3956,9 @@ extern (C++) final class TypeFunction : TypeNext
         bool isInOutQual;      /// inout on the qualifier
         bool isctor;           /// the function is a constructor
         bool isreturnscope;    /// `this` is returned by value
+        bool isCtfeOnly;       /// is @ctfeonly
+        // bool isCtfeOnlyInferred; /// @ctfeonly inferred
+
     }
 
     import dmd.common.bitfields : generateBitFields;
@@ -3965,6 +3969,7 @@ extern (C++) final class TypeFunction : TypeNext
     PURE purity = PURE.impure;
     byte inuse;
     ArgumentList inferenceArguments; // function arguments to determine `auto ref` in type semantic
+    FuncDeclaration ctfeOnlyInferReason = null; // Stores ionformation about @ctfeonly inference.
 
     extern (D) this(ParameterList pl, Type treturn, LINK linkage, StorageClass stc = 0) @safe
     {
@@ -3998,6 +4003,8 @@ extern (C++) final class TypeFunction : TypeNext
             this.isScopeQual = true;
         if (stc & STC.scopeinferred)
             this.isscopeinferred = true;
+        if (stc & STC.ctfeonly)
+            this.isCtfeOnly = true;
 
         this.trust = TRUST.default_;
         if (stc & STC.safe)
@@ -4039,6 +4046,7 @@ extern (C++) final class TypeFunction : TypeNext
         t.trust = trust;
         t.inferenceArguments = inferenceArguments;
         t.isctor = isctor;
+        t.isCtfeOnly = isCtfeOnly;
         return t;
     }
 
@@ -6448,6 +6456,8 @@ void attributesApply(const TypeFunction tf, void delegate(string) dg, TRUSTforma
         dg("scope");
     if (tf.islive)
         dg("@live");
+    if (tf.isCtfeOnly)
+        dg("@ctfeonly");
 
     TRUST trustAttrib = tf.trust;
 
