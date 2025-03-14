@@ -2252,12 +2252,6 @@ private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool isAli
         return false;
     }
 
-    // if (callerTy.ctfeOnlyInferReason)
-    // printf("1 ctfeOnlyInferReason: %s\n", callerTy.ctfeOnlyInferReason.toPrettyChars());
-
-    // if (fTy.ctfeOnlyInferReason)
-    // printf("2 ctfeOnlyInferReason: %s\n", fTy.ctfeOnlyInferReason.toPrettyChars());
-
     error(loc, "`@ctfeonly` %s `%s` cannot be called from non-@ctfeonly %s `%s`",
                     f.kind(), f.toPrettyChars(), sc.func.kind(), sc.func.toPrettyChars());
 
@@ -2275,8 +2269,6 @@ private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool isAli
         else {
             errorSupplemental(loc, "`%s` was inferred to be `@ctfeonly` because it calls `%s`", f.toPrettyChars(), fTy.ctfeOnlyInferReason.toPrettyChars());
         }
-
-
     }
     return true;
 
@@ -5891,7 +5883,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
-        // NOTE: Credit to https://github.com/dlang/dmd/pull/20858/files#diff-a556a8e6917dd4042f541bdb19673f96940149ec3d416b0156af4d0e4cc5e4bd
+        // NOTE: Full credit to https://github.com/dlang/dmd/pull/20858/files#diff-a556a8e6917dd4042f541bdb19673f96940149ec3d416b0156af4d0e4cc5e4bd
+        //       I have no idea how to make this better.
         // That's a hacky way to check if exp.e1 is an alias template parameter.
         // I found that such aliases have parent == null, but I'm not sure if
         // this guarantees that it's a template parameter.
