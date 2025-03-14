@@ -2196,7 +2196,7 @@ private bool checkNogc(FuncDeclaration f, ref Loc loc, Scope* sc)
  */
 private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool isAliasParam) {
 
-    // printf("checkCtfeOnly f     : %s [%08x]\n", f.toChars(), sc.flags);
+    enum FULL_INFER_CHAIN_IN_ERROR = false;
 
     if ((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock))) return false;
 
@@ -2211,14 +2211,7 @@ private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool isAli
     auto caller = sc.func;
     if (!caller) {
         error(loc, "cannot call @ctfeonly function %s from non-CTFE context", f.toPrettyChars());
-        return true;
-    }
-
-
-    // if (caller) printf("checkCtfeOnly caller: %s %s\n", caller.kind(), caller.toChars());
-
-    if (auto fld = caller.isFuncLiteralDeclaration) {
-        if ((sc.flags & (SCOPE.ctfe | SCOPE.ctfeBlock))) return false;
+        return false;
     }
 
     auto callerTy = caller.type.toTypeFunction();
@@ -2228,34 +2221,62 @@ private bool checkCtfeOnly(FuncDeclaration f, ref Loc loc, Scope* sc, bool isAli
     }
 
     if (callerTy.isCtfeOnly()) {
-        f.skipCodegen = true; // NOTE: is this "safe" to do?
+        // NOTE: is this "safe" to do?
+        // f.skipCodegen = true;
         return false;
     }
 
+    bool infer = false;
     if (isAliasParam && caller.isInstantiated()) {
+        infer = true;
+    }
+    else if (fTy.isCtfeOnly && caller.isInstantiated()) {
+        infer = true;
+    }
+    else if (fTy.isCtfeOnly && caller.isFuncLiteralDeclaration()) {
+        // Delegates calling @ctfeonly
+        infer = true;
+    }
+
+    if (infer) {
         callerTy.isCtfeOnly = true;
-        callerTy.ctfeOnlyInferReason = f;
+
+        // if ctfeOnlyInferReason is set, it means infered (we save a flag)
+        static if (FULL_INFER_CHAIN_IN_ERROR) {
+            callerTy.ctfeOnlyInferReason = f;
+        }
+        else {
+            callerTy.ctfeOnlyInferReason = (fTy.ctfeOnlyInferReason) ? fTy.ctfeOnlyInferReason : f;
+        }
+
         return false;
     }
 
-    if (fTy.isCtfeOnly && caller.isInstantiated()) {
-        callerTy.isCtfeOnly = true;
-        callerTy.ctfeOnlyInferReason = f;
-        return false;
-    }
+    // if (callerTy.ctfeOnlyInferReason)
+    // printf("1 ctfeOnlyInferReason: %s\n", callerTy.ctfeOnlyInferReason.toPrettyChars());
 
-    // Delegates calling @ctfeonly
-    if (fTy.isCtfeOnly && caller.isFuncLiteralDeclaration()) {
-        callerTy.isCtfeOnly = true;
-        callerTy.ctfeOnlyInferReason = f;
-        return false;
-    }
+    // if (fTy.ctfeOnlyInferReason)
+    // printf("2 ctfeOnlyInferReason: %s\n", fTy.ctfeOnlyInferReason.toPrettyChars());
+
     error(loc, "`@ctfeonly` %s `%s` cannot be called from non-@ctfeonly %s `%s`",
                     f.kind(), f.toPrettyChars(), sc.func.kind(), sc.func.toPrettyChars());
 
     // FIXME: this never fires
-    if (callerTy.ctfeOnlyInferReason) {
-        errorSupplemental(loc, "%s was inferred to be `@ctfeonly` because it calls %s\n", f.toPrettyChars(), callerTy.ctfeOnlyInferReason.toPrettyChars());
+    if (fTy.ctfeOnlyInferReason) {
+
+        static if (FULL_INFER_CHAIN_IN_ERROR) {
+            errorSupplemental(loc, "`%s` was inferred to be `@ctfeonly` because it calls `%s`", f.toPrettyChars(), fTy.ctfeOnlyInferReason.toPrettyChars());
+            if (auto _f = fTy.ctfeOnlyInferReason.type.toTypeFunction().ctfeOnlyInferReason) {
+                for (;_f; _f = _f.type.toTypeFunction().ctfeOnlyInferReason) {
+                    errorSupplemental(loc, "that was inferred to be `@ctfeonly` because it calls `%s`", _f.toPrettyChars());
+                }
+            }
+        }
+        else {
+            errorSupplemental(loc, "`%s` was inferred to be `@ctfeonly` because it calls `%s`", f.toPrettyChars(), fTy.ctfeOnlyInferReason.toPrettyChars());
+        }
+
+
     }
     return true;
 
@@ -6659,7 +6680,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.f.checkPurity(exp.loc, sc);
                 exp.f.checkSafety(exp.loc, sc);
                 exp.f.checkNogc(exp.loc, sc);
-                exp.f.checkCtfeOnly(exp.loc, sc, fIsAliasParam);
+
+                // @ctfeonly check
+                if (sc.func) exp.f.checkCtfeOnly(exp.loc, sc, fIsAliasParam);
 
                 if (exp.f.checkNestedReference(sc, exp.loc))
                     return setError();

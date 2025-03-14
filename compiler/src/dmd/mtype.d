@@ -3969,7 +3969,7 @@ extern (C++) final class TypeFunction : TypeNext
     PURE purity = PURE.impure;
     byte inuse;
     ArgumentList inferenceArguments; // function arguments to determine `auto ref` in type semantic
-    FuncDeclaration ctfeOnlyInferReason = null; // Stores ionformation about @ctfeonly inference.
+    FuncDeclaration ctfeOnlyInferReason = null; // Stores information about @ctfeonly inference.
 
     extern (D) this(ParameterList pl, Type treturn, LINK linkage, StorageClass stc = 0) @safe
     {
