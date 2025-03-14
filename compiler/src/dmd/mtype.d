@@ -4047,6 +4047,8 @@ extern (C++) final class TypeFunction : TypeNext
         t.inferenceArguments = inferenceArguments;
         t.isctor = isctor;
         t.isCtfeOnly = isCtfeOnly;
+        t.ctfeOnlyInferReason = ctfeOnlyInferReason;
+
         return t;
     }
 
@@ -4141,6 +4143,7 @@ extern (C++) final class TypeFunction : TypeNext
             tf.isInOutParam = t.isInOutParam;
             tf.isInOutQual = t.isInOutQual;
             tf.isctor = t.isctor;
+            tf.isCtfeOnly = t.isCtfeOnly;
 
             if (stc & STC.pure_)
                 tf.purity = PURE.fwdref;
