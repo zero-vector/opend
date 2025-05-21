@@ -4668,10 +4668,12 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                     if (isAnonStructDecl) {
 
                         const(char)[] id_str = "__AnonStruct";
-                        auto new_id = Identifier.generateId(id_str);
-
+                        auto new_ident = Identifier.generateId(id_str);
                         bool inObject = md && !md.packages && md.id == Id.object;
-                        auto sd = new AST.StructDeclaration(s.loc, new_id, inObject);
+
+                        // printf("isAnonStructDecl %d\n", inObject);
+
+                        auto sd = new AST.StructDeclaration(s.loc, new_ident, inObject);
                         sd.members = anon.decl;
                         a.push(sd);
 
@@ -4686,9 +4688,8 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                             _init = parseInitializer();
                         }
 
-                        auto x_ts = new AST.TypeStruct(sd);
-                        auto x_v = new AST.VarDeclaration(var_loc, x_ts, var_ident, _init);
-
+                        auto tid = new AST.TypeIdentifier(var_loc, new_ident);
+                        auto x_v = new AST.VarDeclaration(var_loc, tid, var_ident, _init);
                         a.push(x_v);
 
                         push_aggregate = false;
