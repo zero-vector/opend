@@ -4658,8 +4658,45 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                      token.value == TOK.interface_)
             {
                 AST.Dsymbol s = parseAggregate();
+
                 auto a = new AST.Dsymbols();
-                a.push(s);
+                bool push_aggregate = true;
+
+                if (auto anon = cast(AST.AnonDeclaration) s) {
+                    bool isAnonStructDecl = !anon.isunion && (token.value == TOK.identifier) && (peekNext() == TOK.semicolon || peekNext() == TOK.assign);
+
+                    if (isAnonStructDecl) {
+
+                        const(char)[] id_str = "__AnonStruct";
+                        auto new_id = Identifier.generateId(id_str);
+
+                        bool inObject = md && !md.packages && md.id == Id.object;
+                        auto sd = new AST.StructDeclaration(s.loc, new_id, inObject);
+                        sd.members = anon.decl;
+                        a.push(sd);
+
+                        const var_loc = token.loc;
+                        Identifier var_ident = token.ident;
+
+                        nextToken();
+
+                        AST.Initializer _init = null;
+                        if (token.value == TOK.assign) {
+                            check(TOK.assign);   // skip over '='
+                            _init = parseInitializer();
+                        }
+
+                        auto x_ts = new AST.TypeStruct(sd);
+                        auto x_v = new AST.VarDeclaration(var_loc, x_ts, var_ident, _init);
+
+                        a.push(x_v);
+
+                        push_aggregate = false;
+                    }
+                }
+
+
+                if (push_aggregate) a.push(s);
 
                 if (storage_class)
                 {
