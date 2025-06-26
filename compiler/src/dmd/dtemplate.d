@@ -1642,18 +1642,28 @@ else
                          * void foo(U, T...)(int y, T, U, double, int bar = 0) {}  // rem == 2 (U, double)
                          */
                         size_t rem = 0;
-                        foreach (j; parami + 1 .. nfparams)
+                        
+                        Lloop0: foreach (j; parami + 1 .. nfparams)
                         {
+
                             Parameter p = fparameters[j];
+
+                            // printf(" >>[%llu] p: %s\n", j, p.ident.toChars());
+                            // NOTE(mojo): Account named args that belongs after the tuple parameter, not sure what dragons are loose...
+                            // TODO: Make this whole thing trigger only of there is a named argument, to limit the damage.
+                            if (fnames.length > j) {
+                                foreach(idx, name; fnames[j .. $])
+                                {
+                                    if (p.ident == name) {
+                                        rem += 1;
+                                        continue Lloop0;
+                                    }
+                                }
+                            }
+
                             if (p.defaultArg)
-                            {
-                               break;
-                            }
-                            foreach(name; fnames)
-                            {
-                                if (p.ident == name)
-                                    break;
-                            }
+                                continue; // NOTE(mojo): this was `break` before, but that broke some of my tests.
+
                             if (!reliesOnTemplateParameters(p.type, (*parameters)[inferStart .. parameters.length]))
                             {
                                 Type pt = p.type.syntaxCopy().typeSemantic(fd.loc, paramscope);
