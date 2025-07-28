@@ -27,7 +27,7 @@ jobs:
   # This workflow contains a single job called "greet"
   build-native:
     # The type of runner that the job will run on
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -43,7 +43,7 @@ jobs:
       uses: ./.github/actions/1-setup
       with:
         clang_version: 16.0.6
-        llvm_version: 19.1.7
+        llvm_version: 20.1.5
         arch: x64
 
     - name: Build bootstrap LDC
