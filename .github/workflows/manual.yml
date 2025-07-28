@@ -14,11 +14,11 @@ on:
     inputs:
       name:
         # Friendly description to be shown in the UI instead of 'name'
-        description: 'Person to greet'
+        description: 'Dummy input'
         # Default value if no value is explicitly provided
-        default: 'World'
+        default: 'run you fool!'
         # Input has to be provided for the workflow to run
-        required: true
+        required: false
         # The data type of the input
         type: string
 
