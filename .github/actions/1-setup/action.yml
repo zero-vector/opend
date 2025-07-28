@@ -43,7 +43,9 @@ runs:
         cd ..
         curl -fL --retry 3 --max-time 300 -o clang.exe \
           https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/LLVM-18.1.8-win64.exe //S # double-slash for bash
+        ./clang.exe //S # double-slash for bash
         rm clang.exe
+        clang-cl --version
 
     - name: Download & extract LDC-flavoured LLVM # into ../llvm
       shell: bash
