@@ -42,7 +42,7 @@ runs:
         set -eux
         cd ..
         curl -fL --retry 3 --max-time 300 -o clang.exe \
-          https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/LLVM-18.1.8-win64.exe //S # double-slash for bash
+          https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-win64.exe //S # double-slash for bash
         ./clang.exe //S # double-slash for bash
         rm clang.exe
         clang-cl --version
