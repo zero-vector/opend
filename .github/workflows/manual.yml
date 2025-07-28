@@ -42,8 +42,8 @@ jobs:
     - name: Install prerequisites
       uses: ./.github/actions/1-setup
       with:
-        clang_version: 18.1.8
-        llvm_version: 18.1.8
+        clang_version: 17.0.6
+        llvm_version: 17.0.6
         arch: x64
 
     - name: Build bootstrap LDC
