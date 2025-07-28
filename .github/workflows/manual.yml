@@ -43,7 +43,7 @@ jobs:
       uses: ./.github/actions/1-setup
       with:
         clang_version: 16.0.6
-        llvm_version: 19.1.5
+        llvm_version: 20.1.5
         arch: x64
 
     - name: Build bootstrap LDC
