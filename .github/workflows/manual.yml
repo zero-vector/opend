@@ -2,6 +2,10 @@
 
 name: Manual workflow
 
+env:
+  CLANG_VERSION: 15.0.6
+  LLVM_VERSION: 17.0.6
+  
 # Controls when the action will run. Workflow runs when manually triggered using the UI
 # or API.
 on:
@@ -21,13 +25,27 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "greet"
-  greet:
+  build-native:
     # The type of runner that the job will run on
     runs-on: windows-2022
+
+    # # bootstrap_cmake_flags: -DBUILD_LTO_LIBS=ON
+    # extra_cmake_flags: >-
+    #           -DBUILD_LTO_LIBS=ON
+    #           "-DD_COMPILER_FLAGS=-O -flto=full -defaultlib=phobos2-ldc-lto,druntime-ldc-lto"
+    #           -DEXTRA_CXXFLAGS=-flto=full
+    #         with_pgo: false
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
     # Runs a single command using the runners shell
     - name: Send greeting
       run: echo "Hello from Microsoft, we own you bitch!"
+
+    - name: Install prerequisites
+      uses: ./.github/actions/1-setup
+      with:
+        clang_version: 16.0.6
+        llvm_version: 17.0.6
+        arch: x64
       
