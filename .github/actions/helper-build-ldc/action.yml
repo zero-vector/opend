@@ -39,7 +39,7 @@ runs:
       run: |        
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
-        set "PATH=%PATH%;C:\Program Files\LLVM\bin"
+        set PATH=C:\Program Files\LLVM\bin;%PATH%
         clang-cl --version
         where clang-cl
         make HOST_DMD=${{ inputs.host_dc }}.exe ENABLE_RELEASE=1 ENABLE_LTO=1 dmd druntime phobos
@@ -69,7 +69,7 @@ runs:
       run: |   
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
-        set "PATH=%PATH%;C:\Program Files\LLVM\bin"
+        set PATH=C:\Program Files\LLVM\bin;%PATH%
         clang-cl --version
         clang-cl
         echo %ENVIRONMENT_VARIABLE%
