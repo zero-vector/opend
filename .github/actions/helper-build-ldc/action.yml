@@ -72,14 +72,15 @@ runs:
         clang-cl
         cd .. || exit /b
         set installDir=%CD%\install
+        set llvmBin=C:\Program Files\LLVM\bin
         mkdir "${{ inputs.build_dir }}" || exit /b
         cd "${{ inputs.build_dir }}" || exit /b
         cmake -G Ninja ..\opend\ldc ^
           -DCMAKE_BUILD_TYPE=Release ^
           "-DLLVM_ROOT_DIR=%CD%\..\${{ inputs.llvm_dir }}" ^
           "-DD_COMPILER=${{ inputs.host_dc }}" ^
-          -DCMAKE_C_COMPILER=C:\Program\ Files\LLVM\bin\clang-cl.exe ^
-          -DCMAKE_CXX_COMPILER=C:\Program\ Files\LLVM\bin\clang-cl.exe ^
+          -DCMAKE_C_COMPILER=%llvmBin%\clang-cl.exe ^
+          -DCMAKE_CXX_COMPILER=%llvmBin%\clang-cl.exe ^
           ${{ inputs.specify_install_dir == 'true' && '"-DCMAKE_INSTALL_PREFIX=%installDir%"' || '' }} ^
           ${{ inputs.specify_install_dir == 'true' && '"-DINCLUDE_INSTALL_DIR=%installDir%\import"' || '' }} ^
           ${{ inputs.cmake_flags }}
