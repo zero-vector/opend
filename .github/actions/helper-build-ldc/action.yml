@@ -39,7 +39,7 @@ runs:
       run: |
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
-        ./clang.exe //S
+        clang-cl --version
         make HOST_DMD=${{ inputs.host_dc }}.exe ENABLE_RELEASE=1 ENABLE_LTO=1 dmd druntime phobos
 
     - if: runner.os != 'Windows'
@@ -67,7 +67,7 @@ runs:
       run: |
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
-        ./clang.exe //S
+        clang-cl --version
         cd .. || exit /b
         set installDir=%CD%\install
         mkdir "${{ inputs.build_dir }}" || exit /b
