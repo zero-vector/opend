@@ -70,9 +70,11 @@ runs:
         echo on
         clang-cl --version
         clang-cl
+        echo %ENVIRONMENT_VARIABLE%
+        echo %PATH%
         cd .. || exit /b
         set installDir=%CD%\install
-        set "llvmBin=C:\Program Files\LLVM\bin"
+        set "llvmBin=C:\LLVM\bin"
         mkdir "${{ inputs.build_dir }}" || exit /b
         cd "${{ inputs.build_dir }}" || exit /b
         cmake -G Ninja ..\opend\ldc ^
