@@ -100,8 +100,9 @@ runs:
         sudo ln -sf "$(dirname "$PWD")/llvm/bin/ld.lld" /usr/bin/ld
         ld --version
 
-    - name: Install ninja
-      uses: symmetryinvestments/gha-setup-ninja@v1
+    # Upstream does not use this
+    #- name: Install ninja
+    #  uses: symmetryinvestments/gha-setup-ninja@v1
 
     - name: Install D host compiler
       uses: dlang-community/setup-dlang@v1
