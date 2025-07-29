@@ -46,6 +46,7 @@ runs:
         ./clang.exe //S # double-slash for bash
         rm clang.exe
         clang-cl --version
+        where clang-cl
 
     - name: Download & extract LDC-flavoured LLVM # into ../llvm
       shell: bash
