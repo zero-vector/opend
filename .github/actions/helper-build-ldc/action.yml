@@ -72,7 +72,7 @@ runs:
         clang-cl
         cd .. || exit /b
         set installDir=%CD%\install
-        set llvmBin=C:\Program Files\LLVM\bin
+        set llvmBin="C:\Program Files\LLVM\bin"
         mkdir "${{ inputs.build_dir }}" || exit /b
         cd "${{ inputs.build_dir }}" || exit /b
         cmake -G Ninja ..\opend\ldc ^
