@@ -39,6 +39,7 @@ runs:
       run: |        
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
+        set "PATH=%PATH%;C:\Program Files\LLVM\bin"
         clang-cl --version
         where clang-cl
         make HOST_DMD=${{ inputs.host_dc }}.exe ENABLE_RELEASE=1 ENABLE_LTO=1 dmd druntime phobos
@@ -68,21 +69,21 @@ runs:
       run: |   
         call "%LDC_VSDIR%\Common7\Tools\VsDevCmd.bat" -arch=${{ inputs.arch }} || exit /b
         echo on
+        set "PATH=%PATH%;C:\Program Files\LLVM\bin"
         clang-cl --version
         clang-cl
         echo %ENVIRONMENT_VARIABLE%
         echo %PATH%
         cd .. || exit /b
-        set installDir=%CD%\install
-        set "llvmBin=C:\LLVM\bin"
+        set installDir=%CD%\install        
         mkdir "${{ inputs.build_dir }}" || exit /b
         cd "${{ inputs.build_dir }}" || exit /b
         cmake -G Ninja ..\opend\ldc ^
           -DCMAKE_BUILD_TYPE=Release ^
           "-DLLVM_ROOT_DIR=%CD%\..\${{ inputs.llvm_dir }}" ^
           "-DD_COMPILER=${{ inputs.host_dc }}" ^
-          -DCMAKE_C_COMPILER=%llvmBin%\clang-cl.exe ^
-          -DCMAKE_CXX_COMPILER=%llvmBin%\clang-cl.exe ^
+          -DCMAKE_C_COMPILER=clang-cl.exe ^
+          -DCMAKE_CXX_COMPILER=clang-cl.exe ^
           ${{ inputs.specify_install_dir == 'true' && '"-DCMAKE_INSTALL_PREFIX=%installDir%"' || '' }} ^
           ${{ inputs.specify_install_dir == 'true' && '"-DINCLUDE_INSTALL_DIR=%installDir%\import"' || '' }} ^
           ${{ inputs.cmake_flags }}
