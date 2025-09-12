@@ -329,7 +329,9 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         e.ident != Id.isSame &&
         e.ident != Id.identifier &&
         e.ident != Id.getProtection && e.ident != Id.getVisibility &&
-        e.ident != Id.getAttributes)
+        e.ident != Id.getAttributes &&
+        e.ident != Id.canResolveFunctionCall // canResolveFunctionCall needs more fine grained error checking
+        )
     {
         // Pretend we're in a deprecated scope so that deprecation messages
         // aren't triggered when checking if a symbol is deprecated
@@ -2174,14 +2176,24 @@ version (IN_LLVM)
     if (e.ident == Id.resolveFunctionCall) {
         return resolveFunctionCall(e, sc);
     }
-
     if (e.ident == Id.canResolveFunctionCall) {
 
-        const errors = global.startGagging();
-        auto resolved =  resolveFunctionCall(e, sc);
+        // printf("canResolveFunctionCall\n");
+
+        uint errors = global.startGagging();
+
+        Scope* sc2 = sc.push();
+        sc2.tinst = null;
+        sc2.minst = null;   // this is why code for these are not emitted to object file
+        sc2.flags = (sc.flags & ~(SCOPE.ctfe | SCOPE.condition)) | SCOPE.compile | SCOPE.fullinst;
+
+        auto resolved = resolveFunctionCall(e, sc2);
+
+        sc2.detach();
+
         global.endGagging(errors);
 
-        return (resolved.isErrorExp) ? False : True;
+        return (resolved.isErrorExp) ? False() : True();
     }
 
 
@@ -2250,10 +2262,24 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
                 ce.expressionSemantic(scx);
                 auto resolvedFd = ce.f;
 
-                auto fa = new FuncAliasDeclaration(resolvedFd.ident, resolvedFd, false);
-                fa.visibility = resolvedFd.visibility;
-                auto sym_ex = new DsymbolExp(Loc.initial, fa, false);
-                return expressionSemantic(sym_ex, scx);
+                if (resolvedFd) {
+                    auto fa = new FuncAliasDeclaration(resolvedFd.ident, resolvedFd, false);
+                    fa.visibility = resolvedFd.visibility;
+                    auto sym_ex = new DsymbolExp(Loc.initial, fa, false);
+                    return expressionSemantic(sym_ex, scx);
+                }
+                else {
+
+                    if (auto ee = ce.e1.isErrorExp) {
+                        // TODO
+                    }
+                    // Dsymbol sym = getDsymbol(o);
+                     // printf("resolveFunctionCall:isCallExp       %s\n", ce.e1);
+                    // error(e.loc, "`%s` cannot be resolved", ce.toChars());
+                    // return ErrorExp.get();
+                }
+
+
 
             }
         }
@@ -2289,7 +2315,7 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
     const invalid = (tf is null) && (td is null);
 
     if (invalid) {
-        error(e.loc, "Fisrt argument has to be a function type.");
+        error(e.loc, "First argument has to be a function type.");
         return ErrorExp.get();
     }
 
