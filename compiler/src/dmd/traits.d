@@ -2174,24 +2174,24 @@ version (IN_LLVM)
     }
 
     if (e.ident == Id.resolveFunctionCall) {
-        return resolveFunctionCall(e, sc);
+        return resolveFunctionCall(e, sc, /+gag_resolve_errors:+/false);
     }
     if (e.ident == Id.canResolveFunctionCall) {
 
-        // printf("canResolveFunctionCall\n");
-
-        uint errors = global.startGagging();
-
+        // NOTE: Scope handling same as in `compiles`.
         Scope* sc2 = sc.push();
+
         sc2.tinst = null;
         sc2.minst = null;   // this is why code for these are not emitted to object file
         sc2.flags = (sc.flags & ~(SCOPE.ctfe | SCOPE.condition)) | SCOPE.compile | SCOPE.fullinst;
 
-        auto resolved = resolveFunctionCall(e, sc2);
+
+        auto resolved = resolveFunctionCall(e, sc2, /+gag_resolve_errors:+/true);
 
         sc2.detach();
 
-        global.endGagging(errors);
+        // global.endGagging(errors);
+        if (resolved is null)  return False();
 
         return (resolved.isErrorExp) ? False() : True();
     }
@@ -2204,8 +2204,7 @@ version (IN_LLVM)
     return ErrorExp.get();
 }
 
-/// compare arguments of __traits(isSame)
-private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
+private Expression resolveFunctionCall(TraitsExp e, Scope* sc, bool gag_resolve_errors) {
 
     // NOTE: Copied from semanticTraits
     static TypeFunction toTypeFunction(RootObject o, out FuncDeclaration fdp)
@@ -2251,6 +2250,16 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
                 // DEBUG
                 // printf("resolveFunctionCall:isCallExp %s\n", ce.toChars());
 
+                // This get a little bit weird, we want to catch all errors except the
+                // ones based on wrong arguments/matching.
+                // This is only needed if the trait argument is an `CallExp`.
+                // For that we use global gag on first pass
+                // and if we get any error that does not result in a FunctionDeclaration,
+                // we re-run the sema without gag, we need to do it on "fresh" expression.
+                // This is a performance hit, idk how to avoid it.
+                CallExp tmp_ce;
+                if (gag_resolve_errors) tmp_ce = cast (CallExp)ce.syntaxCopy();
+
                 // NOTE: Copied from getOverloads
                 // ignore symbol visibility and disable access checks for these traits
                 // TODO (mojo): Is this an escape hatch? Should investigate.
@@ -2258,9 +2267,13 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
                 scx.flags |= SCOPE.ignoresymbolvisibility | SCOPE.noaccesscheck;
                 scope (exit) scx.pop();
 
-                // TODO: Do we need to call this?
-                ce.expressionSemantic(scx);
+                uint errors;
+                if (gag_resolve_errors) errors = global.startGagging();
+
+                expressionSemantic(ce, scx);
                 auto resolvedFd = ce.f;
+
+                if (gag_resolve_errors) global.endGagging(errors);
 
                 if (resolvedFd) {
                     auto fa = new FuncAliasDeclaration(resolvedFd.ident, resolvedFd, false);
@@ -2269,18 +2282,16 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
                     return expressionSemantic(sym_ex, scx);
                 }
                 else {
+                    // DEBUG: printf("resolveFunctionCall:isCallExp.e1.op: %d\n", ce.e1.op);
 
-                    if (auto ee = ce.e1.isErrorExp) {
-                        // TODO
-                    }
-                    // Dsymbol sym = getDsymbol(o);
-                     // printf("resolveFunctionCall:isCallExp       %s\n", ce.e1);
-                    // error(e.loc, "`%s` cannot be resolved", ce.toChars());
-                    // return ErrorExp.get();
+                    // Re-run the sema to get error message, as we no know the error is not caused
+                    // by argument matching, we do this only if `gag_resolve_errors` is true, as otherwise the error
+                    // was already exposed in the first pass.
+                    if (gag_resolve_errors) expressionSemantic(tmp_ce.e1, scx);
+
+                    // Can not return `ErrorExp.get()` as it could have been gagged.
+                    return null;
                 }
-
-
-
             }
         }
     }
@@ -2293,7 +2304,6 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc) {
         error(e.loc, "Unable to get symbol from first argument, has to be a function type.");
         return ErrorExp.get();
     }
-
 
     Expression ex = new DsymbolExp(e.loc, sym);
 
