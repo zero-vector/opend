@@ -2287,7 +2287,13 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc, bool gag_resolve_
                     // Re-run the sema to get error message, as we no know the error is not caused
                     // by argument matching, we do this only if `gag_resolve_errors` is true, as otherwise the error
                     // was already exposed in the first pass.
-                    if (gag_resolve_errors) expressionSemantic(tmp_ce.e1, scx);
+                    if (gag_resolve_errors) {
+                        // Error can be in the call expression, or/and in arguments
+                        expressionSemantic(tmp_ce.e1, scx);
+                        foreach (idx, arg_e; *tmp_ce.arguments) {
+                            expressionSemantic(arg_e, scx);
+                        }
+                    }
 
                     // Can not return `ErrorExp.get()` as it could have been gagged.
                     return null;
