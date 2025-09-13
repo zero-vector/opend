@@ -2244,22 +2244,9 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc, bool gag_resolve_
     auto o = (*e.args)[0];
 
     if (dim == 1) {
+        // Special handling CallExpression
         if (auto ex = isExpression(o)) {
-
             if (auto ce = ex.isCallExp()) {
-                // DEBUG
-                // printf("resolveFunctionCall:isCallExp %s\n", ce.toChars());
-
-                // This get a little bit weird, we want to catch all errors except the
-                // ones based on wrong arguments/matching.
-                // This is only needed if the trait argument is an `CallExp`.
-                // For that we use global gag on first pass
-                // and if we get any error that does not result in a FunctionDeclaration,
-                // we re-run the sema without gag, we need to do it on "fresh" expression.
-                // This is a performance hit, idk how to avoid it.
-                CallExp tmp_ce;
-                if (gag_resolve_errors) tmp_ce = cast (CallExp)ce.syntaxCopy();
-
                 // NOTE: Copied from getOverloads
                 // ignore symbol visibility and disable access checks for these traits
                 // TODO (mojo): Is this an escape hatch? Should investigate.
@@ -2267,13 +2254,26 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc, bool gag_resolve_
                 scx.flags |= SCOPE.ignoresymbolvisibility | SCOPE.noaccesscheck;
                 scope (exit) scx.pop();
 
-                uint errors;
-                if (gag_resolve_errors) errors = global.startGagging();
+                // This get a little bit weird, we want to catch all errors except the
+                // ones based on wrong arguments/matching.
+                // This is only needed if the trait argument is an `CallExp`.
+                // For that we use global gag but only on the final expression
+                // before that, we do semantic on each individual part ce.e1 and each argument.
+                expressionSemantic(ce.e1, scx);
+                foreach (idx, arg_e; *ce.arguments) {
+                    expressionSemantic(arg_e, scx);
+                }
 
-                expressionSemantic(ce, scx);
+                if (gag_resolve_errors) {
+                    const errors = global.startGagging();
+                    expressionSemantic(ce, scx);
+                    global.endGagging(errors);
+                }
+                else {
+                    expressionSemantic(ce, scx);
+                }
+
                 auto resolvedFd = ce.f;
-
-                if (gag_resolve_errors) global.endGagging(errors);
 
                 if (resolvedFd) {
                     auto fa = new FuncAliasDeclaration(resolvedFd.ident, resolvedFd, false);
@@ -2282,19 +2282,6 @@ private Expression resolveFunctionCall(TraitsExp e, Scope* sc, bool gag_resolve_
                     return expressionSemantic(sym_ex, scx);
                 }
                 else {
-                    // DEBUG: printf("resolveFunctionCall:isCallExp.e1.op: %d\n", ce.e1.op);
-
-                    // Re-run the sema to get error message, as we no know the error is not caused
-                    // by argument matching, we do this only if `gag_resolve_errors` is true, as otherwise the error
-                    // was already exposed in the first pass.
-                    if (gag_resolve_errors) {
-                        // Error can be in the call expression, or/and in arguments
-                        expressionSemantic(tmp_ce.e1, scx);
-                        foreach (idx, arg_e; *tmp_ce.arguments) {
-                            expressionSemantic(arg_e, scx);
-                        }
-                    }
-
                     // Can not return `ErrorExp.get()` as it could have been gagged.
                     return null;
                 }
