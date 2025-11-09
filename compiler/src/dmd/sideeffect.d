@@ -260,6 +260,12 @@ bool discardValue(Expression e)
     case EXP.variable:
         {
             VarDeclaration v = (cast(VarExp)e).var.isVarDeclaration();
+
+            if (v) {
+                // Don't complain void to void assigments.
+                if (v.type.ty == Tvoid) return false;
+            }
+
             if (v && (v.storage_class & STC.temp))
             {
                 // https://issues.dlang.org/show_bug.cgi?id=5810

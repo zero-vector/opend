@@ -763,15 +763,21 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         Type tbn = tb.baseElemOf();
         if (tb.ty == Tvoid && !(dsym.storage_class & STC.lazy_))
         {
-            if (inferred)
-            {
-                .error(dsym.loc, "%s `%s` - type `%s` is inferred from initializer `%s`, and variables cannot be of type `void`",
-                    dsym.kind, dsym.toPrettyChars, dsym.type.toChars(), toChars(dsym._init));
+            // Enabling `void` variables.
+            version(none) {
+                if (inferred)
+                {
+                    .error(dsym.loc, "%s `%s` - type `%s` is inferred from initializer `%s`, and variables cannot be of type `void`",
+                        dsym.kind, dsym.toPrettyChars, dsym.type.toChars(), toChars(dsym._init));
+                }
+                else
+                    .error(dsym.loc, "%s `%s` - variables cannot be of type `void`", dsym.kind, dsym.toPrettyChars);
+                dsym.type = Type.terror;
+                tb = dsym.type;
             }
-            else
-                .error(dsym.loc, "%s `%s` - variables cannot be of type `void`", dsym.kind, dsym.toPrettyChars);
-            dsym.type = Type.terror;
-            tb = dsym.type;
+
+            dsym.type = dsym.type.addStorageClass(dsym.storage_class);
+            return;
         }
         if (tb.ty == Tfunction)
         {

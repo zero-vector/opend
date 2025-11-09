@@ -10567,6 +10567,18 @@ version (IN_LLVM)
                 e2x = resolveAliasThis(sc, e2x); //https://issues.dlang.org/show_bug.cgi?id=17684
             if (e2x.op == EXP.error)
                 return setResult(e2x);
+
+            // We rewrite and assignment to void as just e2x.
+            if (t1.ty == Tvoid) {
+                Type t2 = e2x.type.isTypeEnum() ? e2x.type : e2x.type.toBasetype();
+                if (t2.ty == Tvoid) {
+                    if (exp.op == EXP.assign) {
+                        setResult(e2x);
+                        return;
+                    }
+                }
+            }
+
             // We delay checking the value for structs/classes as these might have
             // an opAssign defined.
             if ((t1.ty != Tstruct && t1.ty != Tclass && e2x.checkValue()) ||
