@@ -763,20 +763,63 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         Type tbn = tb.baseElemOf();
         if (tb.ty == Tvoid && !(dsym.storage_class & STC.lazy_))
         {
+
+            // NOTE(mojo): idk about this
+            dsym.type = dsym.type.addStorageClass(dsym.storage_class);
+
             // Enabling `void` variables.
-            version(none) {
-                if (inferred)
-                {
-                    .error(dsym.loc, "%s `%s` - type `%s` is inferred from initializer `%s`, and variables cannot be of type `void`",
-                        dsym.kind, dsym.toPrettyChars, dsym.type.toChars(), toChars(dsym._init));
+            if (dsym._init) {
+
+                // printf("-- %d\n", dsym._init.kind);
+
+                if (dsym._init.isVoidInitializer()) {
+                    // Allowing `void x = void`
                 }
-                else
-                    .error(dsym.loc, "%s `%s` - variables cannot be of type `void`", dsym.kind, dsym.toPrettyChars);
-                dsym.type = Type.terror;
-                tb = dsym.type;
+                else if (ExpInitializer ei = dsym._init.isExpInitializer()) {
+
+                    // Allowing `void x = foo()`, if `foo` returns void;
+
+                    Expression exp = ei.exp.syntaxCopy();
+                    exp = inferType(exp, dsym.type);
+                    exp = exp.expressionSemantic(sc);
+
+                    if (auto ce = exp.isCallExp()) {
+
+                        ei.exp = exp;
+
+                        bool callReturnsValue = true; // Make faililing the default.
+                        {
+                            auto tf = cast(TypeFunction)ce.f.type;
+                            if (tf && tf.next) {
+                                callReturnsValue = (tf.next.ty != Tvoid);
+                            }
+                        }
+
+                        if (callReturnsValue) {
+                            error(dsym.loc, "%s `%s` - variables of type `void` can not be initialized by calling `%s`", dsym.kind, dsym.toPrettyChars, ce.f.toPrettyChars);
+                            dsym.type = Type.terror;
+                        }
+                    }
+                    else {
+                        error(dsym.loc, "%s `%s` - variables of type `void` can not be initialized by `%s`", dsym.kind, dsym.toPrettyChars, exp.toChars);
+                        dsym.type = Type.terror;
+                    }
+                }
+                else {
+                    // Vanilla error on anything non-void.
+                    if (inferred)
+                    {
+                        .error(dsym.loc, "%s `%s` - type `%s` is inferred from initializer `%s`, and variables of type `void` can not be initialized to a non-void value",
+                            dsym.kind, dsym.toPrettyChars, dsym.type.toChars(), toChars(dsym._init));
+                    }
+                    else
+                        error(dsym.loc, "%s `%s` - variables of type `void` can not be initialized to a non-void value", dsym.kind, dsym.toPrettyChars);
+
+                    dsym.type = Type.terror;
+                    tb = dsym.type;
+                }
             }
 
-            dsym.type = dsym.type.addStorageClass(dsym.storage_class);
             return;
         }
         if (tb.ty == Tfunction)
