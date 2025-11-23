@@ -564,10 +564,11 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
 
         dsym.semanticRun = PASS.semantic;
 
-        // dsym.storage_class |= sc.stc & STC.deprecated_;
         // dsym.visibility = sc.visibility;
         // dsym.userAttribDecl = sc.userAttribDecl;
+        dsym.basetype = dsym.basetype.typeSemantic(dsym.loc, sc);
 
+        dsym.type = dsym.type.addStorageClass(dsym.storage_class);
         dsym.type = dsym.type.typeSemantic(dsym.loc, sc);
 
         // basetype = basetype->semantic(loc, sc); !!!

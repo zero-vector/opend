@@ -4649,8 +4649,9 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
 
                     nextToken(); // should be type
 
+                    printf("TypedefDeclaration() %s : %s\n", ident.toChars(), t.toChars());
+
                     auto a = new AST.Dsymbols();
-                    printf("TypedefDeclaration() %s\n", token.toChars());
                     a.push(new AST.TypedefDeclaration(aliasLoc, ident, t));
                     return a;
 

@@ -2252,6 +2252,13 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
         mtype.resolve(loc, sc, e, t, s);
         if (t)
         {
+            if (t.ty == Ttypedef)
+            {
+                auto tt = cast(TypeTypedef)t;
+                if (tt.sym.semanticRun == PASS.semantic)
+                    .error(loc, "circular reference of typedef %s", tt.toChars());
+            }
+
             //printf("\tit's a type %d, %s, %s\n", t.ty, t.toChars(), t.deco);
             return t.addMod(mtype.mod);
         }
@@ -2406,6 +2413,20 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
     {
         //printf("TypeEnum::semantic() %s\n", toChars());
         return mtype.deco ? mtype : merge(mtype);
+    }
+
+    Type visitTypeTypedef(TypeTypedef mtype)
+    {
+        if (mtype.deco)
+            return mtype;
+
+
+        // printf("TypeTypedef::semantic() %s\n", mtype.toChars());
+        // FIXME: WTF, segfault
+        //if (mtype.sym) mtype.sym.dsymbolSemantic(sc);
+
+        // return merge(mtype.sym.basetype);
+        return merge(mtype);
     }
 
     Type visitClass(TypeClass mtype)
@@ -2725,6 +2746,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
         case Tslice:     return visitSlice(type.isTypeSlice());
         case Tmixin:     return visitMixin(type.isTypeMixin());
         case Ttag:       return visitTag(type.isTypeTag());
+        case Ttypedef:   return visitTypeTypedef(type.isTypeTypedef());
     }
 }
 
@@ -2758,6 +2780,9 @@ extern (C++) Type merge(Type type)
         case Tenum:
             break;
 
+        case Ttypedef:
+            break;
+
         case Taarray:
             if (!type.isTypeAArray().index.merge().deco)
                 return type;
@@ -2769,7 +2794,7 @@ extern (C++) Type merge(Type type)
             break;
     }
 
-    //printf("merge(%s)\n", toChars());
+
     if (!type.deco)
     {
         OutBuffer buf;

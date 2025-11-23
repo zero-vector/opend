@@ -5612,7 +5612,7 @@ extern (C++) final class TypeTypedef : Type
 
     override const(char)* kind() const
     {
-        return "FIXME";
+        return "typedef";
     }
 
     override TypeTypedef syntaxCopy()
@@ -5631,7 +5631,7 @@ extern (C++) final class TypeTypedef : Type
         return sym.basetype.alignsize();
     }
 
-        override Dsymbol toDsymbol(Scope* sc)
+    override Dsymbol toDsymbol(Scope* sc)
     {
         return sym;
     }
@@ -5761,6 +5761,8 @@ extern (C++) final class TypeTypedef : Type
     }
 
     Type toBasetype2() {
+
+        // printf("TypeTypedef.toBasetype2\n");
 
         if (sym.inuse)
         {

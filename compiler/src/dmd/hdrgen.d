@@ -4228,6 +4228,14 @@ private void typeToBufferx(Type t, ref OutBuffer buf, ref HdrGenState hgs)
             buf.writestring(hgs.fullQual ? t.sym.toPrettyChars() : t.sym.toChars());
     }
 
+    void visitTypeTypedef(TypeTypedef t)
+    {
+        buf.writestring("typedef ");
+        buf.writestring(t.sym.ident.toString());
+        // buf.writestring(" = ");
+        // buf.writestring(t.sym.basetype.toString());
+    }
+
     void visitTag(TypeTag t)
     {
         if (t.mod & MODFlags.const_)
@@ -4310,6 +4318,8 @@ private void typeToBufferx(Type t, ref OutBuffer buf, ref HdrGenState hgs)
         case Tmixin:     return visitMixin(cast(TypeMixin)t);
         case Tnoreturn:  return visitNoreturn(cast(TypeNoreturn)t);
         case Ttag:       return visitTag(cast(TypeTag)t);
+        case Ttypedef:   return visitTypeTypedef(cast(TypeTypedef)t);
+
     }
 }
 

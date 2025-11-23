@@ -41,7 +41,9 @@ extern (C++) void mangleToBuffer(Type t, ref OutBuffer buf)
     {
         auto backref = Backref(t);
         mangleType(t, 0, buf, backref);
-        //printf("%s\n", buf.peekChars());
+
+        // buf.writestring(t.deco);
+        // printf("%s\n", buf.peekChars());
     }
 }
 
@@ -230,6 +232,7 @@ private immutable char[TMAX] mangleChar =
     Tmixin       : '@',
     Ttag         : '@',
     Tnoreturn    : '@',         // becomes 'Nn'
+    Ttypedef     : 'T',
 ];
 
 unittest
@@ -337,6 +340,14 @@ void mangleType(Type t, ubyte modMask, ref OutBuffer buf, ref Backref backref)
             mangleSymbol(t.sym);
         }
 
+
+        void visitTypeTypedef(TypeTypedef t)
+        {
+            //printf("TypeTypedef.toDecoBuffer('%s' mod=%x) = '%s'\n", t.toChars(), mod, name);
+            visitType(t);
+            mangleSymbol(t.sym);
+        }
+
         void visitTypeTuple(TypeTuple t)
         {
             //printf("TypeTuple.toDecoBuffer() t = %p, %s\n", t, t.toChars());
@@ -384,6 +395,7 @@ void mangleType(Type t, ubyte modMask, ref OutBuffer buf, ref Backref backref)
             case Tnull:      visitTypeNull      (t.isTypeNull());       break;
             case Tvector:    visitTypeVector    (t.isTypeVector());     break;
             case Tnoreturn:  visitTypeNoreturn  (t.isTypeNoreturn);     break;
+            case Ttypedef:   visitTypeTypedef   (t.isTypeTypedef());    break;
 
             case Terror:
                 break;      // ignore errors
@@ -662,10 +674,14 @@ public:
         }
     }
 
+    override void visit(TypedefDeclaration td) {
+        mangleType(td.type, 0, *buf, *backref);
+    }
+
     override void visit(Declaration d)
     {
-        //printf("Declaration.mangle(this = %p, '%s', parent = '%s', linkage = %d)\n",
-        //        d, d.toChars(), d.parent ? d.parent.toChars() : "null", d.linkage);
+        // printf("Declaration.mangle(this = %p, '%s', parent = '%s')\n",
+        //        d, d.toChars(), d.parent ? d.parent.toChars() : "null");
         if (const id = externallyMangledIdentifier(d))
         {
             buf.writestring(id);
