@@ -458,6 +458,9 @@ version (IN_LLVM)
             sizeTy[Tmixin] = __traits(classInstanceSize, TypeMixin);
             sizeTy[Tnoreturn] = __traits(classInstanceSize, TypeNoreturn);
             sizeTy[Ttag] = __traits(classInstanceSize, TypeTag);
+
+            sizeTy[Ttypedef] = __traits(classInstanceSize, TypeTypedef);
+
             return sizeTy;
         }();
 
@@ -1926,8 +1929,16 @@ version (IN_LLVM)
         /* This function is used heavily.
          * De-virtualize it so it can be easily inlined.
          */
-        TypeEnum te;
-        return ((te = isTypeEnum()) !is null) ? te.toBasetype2() : this;
+        // TypeEnum te;
+        // return ((te = isTypeEnum()) !is null) ? te.toBasetype2() : this;
+        if (TypeEnum te = isTypeEnum()) {
+            return te.toBasetype2();
+        }
+        else if (TypeTypedef td = isTypeTypedef()) {
+            return td.toBasetype2();
+        }
+
+        return this;
     }
 
     bool isBaseOf(Type t, int* poffset)
@@ -2490,6 +2501,7 @@ version (IN_LLVM)
         inout(TypeTraits)     isTypeTraits()     { return ty == Ttraits    ? cast(typeof(return))this : null; }
         inout(TypeNoreturn)   isTypeNoreturn()   { return ty == Tnoreturn  ? cast(typeof(return))this : null; }
         inout(TypeTag)        isTypeTag()        { return ty == Ttag       ? cast(typeof(return))this : null; }
+        inout(TypeTypedef)    isTypeTypedef()    { return ty == Ttypedef   ? cast(typeof(return))this : null; }
     }
 
     override void accept(Visitor v)
@@ -5586,6 +5598,218 @@ extern (C++) final class TypeClass : Type
 
 /***********************************************************
  */
+extern (C++) final class TypeTypedef : Type
+{
+
+    // NOTE: copu TypeEnum overrides
+    TypedefDeclaration sym;
+
+    extern (D) this(TypedefDeclaration sym) //@safe
+    {
+        super(Ttypedef);
+        this.sym = sym;
+    }
+
+    override const(char)* kind() const
+    {
+        return "FIXME";
+    }
+
+    override TypeTypedef syntaxCopy()
+    {
+        return this;
+    }
+
+
+    override uinteger_t size(const ref Loc loc)
+    {
+        return sym.basetype.size(loc);
+    }
+
+    override uint alignsize()
+    {
+        return sym.basetype.alignsize();
+    }
+
+        override Dsymbol toDsymbol(Scope* sc)
+    {
+        return sym;
+    }
+
+    override bool isintegral()
+    {
+        return sym.basetype.isintegral();
+    }
+
+    override bool isfloating()
+    {
+        return sym.basetype.isfloating();
+    }
+
+    override bool isreal()
+    {
+        return sym.basetype.isreal();
+    }
+
+    override bool isimaginary()
+    {
+        return sym.basetype.isimaginary();
+    }
+
+    override bool iscomplex()
+    {
+        return sym.basetype.iscomplex();
+    }
+
+    override bool isscalar()
+    {
+        return sym.basetype.isscalar();
+    }
+
+    override bool isunsigned()
+    {
+        return sym.basetype.isunsigned();
+    }
+
+    override bool isBoolean()
+    {
+        return sym.basetype.isBoolean();
+    }
+
+    override bool isString()
+    {
+        return sym.basetype.isString();
+    }
+
+    override bool isAssignable()
+    {
+        return sym.basetype.isAssignable();
+    }
+
+    override bool needsDestruction()
+    {
+        return sym.basetype.needsDestruction();
+    }
+
+    override bool needsCopyOrPostblit()
+    {
+        return sym.basetype.needsCopyOrPostblit();
+    }
+
+    override bool needsNested()
+    {
+        return sym.basetype.needsNested();
+    }
+
+
+    /+
+    MATCH TypeTypedef::implicitConvTo(Type *to)
+    {
+        MATCH m;
+
+        //printf("TypeTypedef::implicitConvTo(to = %s) %s\n", to->toChars(), toChars());
+        if (equals(to))
+            m = MATCHexact;         // exact match
+        else if (sym->basetype->implicitConvTo(to))
+            m = MATCHconvert;       // match with conversions
+        else if (ty == to->ty && sym == ((TypeTypedef *)to)->sym)
+        {
+            m = constConv(to);
+        }
+        else
+            m = MATCHnomatch;       // no match
+        return m;
+    }
+
+    MATCH TypeTypedef::constConv(Type *to)
+    {
+        if (equals(to))
+            return MATCHexact;
+        if (ty == to->ty && sym == ((TypeTypedef *)to)->sym)
+            return sym->basetype->implicitConvTo(((TypeTypedef *)to)->sym->basetype);
+        return MATCHnomatch;
+    }
+    +/
+
+
+    override MATCH implicitConvTo(Type to)
+    {
+        MATCH m;
+        //printf("TypeTypedef::implicitConvTo() %s to %s\n", toChars(), to.toChars());
+        if (this.equals(to)) {
+            m = MATCH.exact;
+        }
+        else if (sym.basetype.implicitConvTo(to)) {
+            m = MATCH.convert; // match with conversions
+        }
+        else if (ty == to.ty && sym == (cast(TypeTypedef)to).sym) {
+            m = constConv(to);
+        }
+        else
+            m = MATCH.nomatch; // no match
+        return m;
+    }
+
+
+    override MATCH constConv(Type to)
+    {
+        if (equals(to))
+            return MATCH.exact;
+        if (ty == to.ty && sym == (cast(TypeTypedef)to).sym)
+            return sym.basetype.implicitConvTo((cast(TypeTypedef)to).sym.basetype);
+        return MATCH.nomatch;
+    }
+
+    Type toBasetype2() {
+
+        if (sym.inuse)
+        {
+            // FIXME
+            // sym.error("circular definition");
+            sym.basetype = new TypeError();
+            return new TypeError();
+        }
+
+        sym.inuse = 1;
+        Type t = sym.basetype.toBasetype();
+        sym.inuse = 0;
+        t = t.addMod(mod);
+        return t;
+    }
+
+    override bool isZeroInit(const ref Loc loc) {
+        return sym.basetype.isZeroInit(loc);
+    }
+
+    override bool hasVoidInitPointers()
+    {
+        return sym.basetype.hasVoidInitPointers();
+    }
+
+    override bool hasSystemFields()
+    {
+        return sym.basetype.hasSystemFields();
+    }
+
+    override bool hasInvariant()
+    {
+        return sym.basetype.hasInvariant();
+    }
+
+    override Type nextOf()
+    {
+        return sym.basetype.nextOf();
+    }
+
+    override void accept(Visitor v)
+    {
+        v.visit(this);
+    }
+
+}
+
+/***********************************************************
+ */
 extern (C++) final class TypeTuple : Type
 {
     // 'logically immutable' cached global - don't modify!
@@ -6712,6 +6936,7 @@ mixin template VisitType(Result)
             case TY.Tmixin:     mixin(visitTYCase("Mixin"));
             case TY.Tnoreturn:  mixin(visitTYCase("Noreturn"));
             case TY.Ttag:       mixin(visitTYCase("Tag"));
+            case TY.Ttypedef:   mixin(visitTYCase("Typedef"));
             case TY.Tnone:      assert(0);
         }
     }

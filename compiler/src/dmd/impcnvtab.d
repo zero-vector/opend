@@ -114,6 +114,7 @@ ImpCnvTab generateImpCnvTab()
         Tmixin,
         Tnoreturn,
         Ttag,
+        Ttypedef,
     ];
     ImpCnvTab impCnvTab;
 
