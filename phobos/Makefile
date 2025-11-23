@@ -78,6 +78,11 @@ else
     override PIC:=
 endif
 
+
+# default to compiling the C parts (zlib) with DMD via importC; override with USE_IMPORTC=1/0
+USE_IMPORTC:=0
+
+
 # Configurable stuff that's rarely edited
 INSTALL_DIR = ../../install
 DRUNTIME_PATH = $(DMD_DIR)/druntime
@@ -123,6 +128,29 @@ else
 	ifeq ($(MODEL),32omf)
 		CFLAGS += -P=-DNO_snprintf
 	endif
+endif
+
+# Set CC, CC_OUTFILEFLAG and CFLAGS unless using importC
+ifneq ($(USE_IMPORTC),1)
+    CC := cc
+    CC_OUTFILEFLAG := -o
+
+    ifeq ($(OS),win32wine)
+        CC := wine dmc.exe
+        CFLAGS := $(if $(findstring $(BUILD),debug),-g,-O)
+    else ifeq ($(MODEL),32omf)
+        CC := dmc
+        CFLAGS := $(if $(findstring $(BUILD),debug),-g,-O)
+    else ifeq ($(OS),windows)
+        CC := cl
+        CC_OUTFILEFLAG := /Fo
+        CFLAGS := /nologo /Zl /GS- $(if $(findstring $(BUILD),debug),/Z7,/O2)
+    else # Posix
+        CFLAGS := $(MODEL_FLAG) -fPIC -std=c11 $(if $(findstring $(BUILD),debug),-g,-O3)
+        ifeq (osx64,$(OS)$(MODEL))
+            CFLAGS += --target=x86_64-darwin-apple  # ARM cpu is not supported by dmd
+        endif
+    endif
 endif
 
 
@@ -279,6 +307,13 @@ C_MODULES = $(addprefix etc/c/zlib/, adler32 compress crc32 deflate	\
 
 C_FILES = $(addsuffix .c, $(C_MODULES))
 
+
+ifeq ($(USE_IMPORTC),1)
+    C_OBJS := $(ROOT)/zlib$(DOTOBJ)
+else
+    C_OBJS := $(addprefix $(ROOT)/, $(addsuffix $(DOTOBJ), $(C_MODULES)))
+endif
+
 # build with shared library support (defaults to true on supported platforms)
 SHARED=$(if $(findstring $(OS),linux freebsd),1,)
 
@@ -324,11 +359,17 @@ lib: $(LIB)
 dll: $(ROOT)/libphobos2.so
 
 # compile zlib .c files via importC; the druntime dependency makes sure DMD has been built
+ifeq ($(USE_IMPORTC),1)
 $(ROOT)/zlib$(DOTOBJ): $(C_FILES) $(DRUNTIME)
 	$(DMD) -c $(DFLAGS) $(CFLAGS) -of$@ $(C_FILES)
+else
+$(ROOT)/%$(DOTOBJ): %.c
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@) || [ -d $(dir $@) ]
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< $(CC_OUTFILEFLAG)$@
+endif
 
-$(LIB): $(ROOT)/zlib$(DOTOBJ) $(ALL_D_FILES) $(DRUNTIME)
-	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
+$(LIB): $(C_OBJS) $(ALL_D_FILES) $(DRUNTIME)
+	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(C_OBJS)
 
 $(ROOT)/libphobos2.so: $(ROOT)/$(SONAME)
 	ln -sf $(notdir $(LIBSO)) $@
