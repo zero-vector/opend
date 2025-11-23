@@ -49,6 +49,7 @@ public:
     // Declarations
     void visit(AST.VarDeclaration s) { visit(cast(AST.Declaration)s); }
     void visit(AST.FuncDeclaration s) { visit(cast(AST.Declaration)s); }
+    void visit(AST.TypedefDeclaration s) { visit(cast(AST.Declaration)s); }
     void visit(AST.AliasDeclaration s) { visit(cast(AST.Declaration)s); }
     void visit(AST.TupleDeclaration s) { visit(cast(AST.Declaration)s); }
 

@@ -1082,6 +1082,14 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                 nextToken();
                 continue;
 
+            case TOK.default_:
+                if (peekNext() == TOK.alias_) {
+                    nextToken();
+                    pAttrs.setDefault = true;
+                    goto Ldeclaration;
+                }
+                goto default;
+
             case TOK.leftParenthesis:
                 if (peekPastParen(&token).value == TOK.assign) // (for better error messages)
                     goto Ldeclaration;
@@ -4622,6 +4630,37 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
         auto aliasLoc = token.loc;
         if (token.value == TOK.alias_)
         {
+
+            // Set default alias flag here, so we dont change function signatures
+            if (pAttrs && pAttrs.setDefault) {
+                nextToken();
+
+
+                if (token.value == TOK.identifier && hasOptionalParensThen(peek(&token), TOK.assign)) {
+                    auto ident = token.ident;
+
+                    // FIXME: account for hasOptionalParensThen
+                    nextToken(); // should be assign
+
+                    nextToken(); // should be type
+
+                    auto t = parseBasicType();
+                    t = parseTypeSuffixes(t);
+
+                    nextToken(); // should be type
+
+                    auto a = new AST.Dsymbols();
+                    printf("TypedefDeclaration() %s\n", token.toChars());
+                    a.push(new AST.TypedefDeclaration(aliasLoc, ident, t));
+                    return a;
+
+                    // return new TypedefDeclaration(aliasLoc, ident, t);
+                }
+
+                 // (const ref Loc loc, Identifier ident, Type basetype)
+
+            }
+
             if (auto a = parseAliasDeclarations(comment))
                 return a;
             /* Handle these later:
@@ -10066,6 +10105,8 @@ struct PrefixAttributes(AST)
     AST.Expression ealign;
     AST.Expressions* udas;
     const(char)* comment;
+
+    bool setDefault;
 }
 
 /// The result of the `ParseLinkage` function

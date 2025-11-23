@@ -1143,6 +1143,8 @@ version (IN_LLVM)
     inout(MixinDeclaration)            isMixinDeclaration()            inout { return null; }
     inout(StaticAssert)                isStaticAssert()                inout { return null; }
     inout(StaticIfDeclaration)         isStaticIfDeclaration()         inout { return null; }
+    inout(TypedefDeclaration)          isTypedefDeclaration()          inout { return null; }
+
 }
 
 /***********************************************************

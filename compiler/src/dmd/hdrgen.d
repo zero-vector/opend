@@ -1649,6 +1649,11 @@ void toCBuffer(Dsymbol s, ref OutBuffer buf, ref HdrGenState hgs)
         buf.writenl();
     }
 
+
+    void visitTypedefDeclaration(TypedefDeclaration d) {
+        buf.writestring("FIXME");
+    }
+
     void visitAliasDeclaration(AliasDeclaration d)
     {
         if (d.storage_class & STC.local)
@@ -1943,6 +1948,7 @@ void toCBuffer(Dsymbol s, ref OutBuffer buf, ref HdrGenState hgs)
         void visit(Nspace d)                   { visitNspace(d); }
         void visit(StructDeclaration d)        { visitStructDeclaration(d); }
         void visit(ClassDeclaration d)         { visitClassDeclaration(d); }
+        void visit(TypedefDeclaration d)       { visitTypedefDeclaration(d); }
         void visit(AliasDeclaration d)         { visitAliasDeclaration(d); }
         void visit(AliasAssign d)              { visitAliasAssign(d); }
         void visit(VarDeclaration d)           { visitVarDeclaration(d); }

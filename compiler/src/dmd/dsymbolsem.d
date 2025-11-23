@@ -553,6 +553,28 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         dsym.semanticRun = PASS.semanticdone;
     }
 
+    override void visit(TypedefDeclaration dsym)
+    {
+        if (dsym.semanticRun >= PASS.semanticdone)
+            return;
+        assert(dsym.semanticRun <= PASS.semantic);
+
+        if (!sc)
+            return;
+
+        dsym.semanticRun = PASS.semantic;
+
+        // dsym.storage_class |= sc.stc & STC.deprecated_;
+        // dsym.visibility = sc.visibility;
+        // dsym.userAttribDecl = sc.userAttribDecl;
+
+        dsym.type = dsym.type.typeSemantic(dsym.loc, sc);
+
+        // basetype = basetype->semantic(loc, sc); !!!
+
+        dsym.semanticRun = PASS.semanticdone;
+    }
+
     override void visit(AliasDeclaration dsym)
     {
         if (dsym.semanticRun >= PASS.semanticdone)

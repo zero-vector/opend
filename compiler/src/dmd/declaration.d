@@ -733,6 +733,54 @@ extern (C++) final class TupleDeclaration : Declaration
     }
 }
 
+
+extern (C++) final class TypedefDeclaration : Declaration
+{
+    Type basetype;
+
+    // TypedefDeclaration(Loc loc, Identifier *ident, Type *basetype, Initializer *init);
+    extern (D) this(const ref Loc loc, Identifier ident, Type basetype) // @safe
+    {
+        super(loc, ident);
+        //printf("AliasDeclaration(id = '%s', type = %p)\n", ident.toChars(), type);
+        //printf("type = '%s'\n", type.toChars());
+
+        this.type = basetype; // FIXME new TypeTypedef(this);
+        this.basetype = basetype.toBasetype();
+
+        assert(type);
+    }
+
+    override TypedefDeclaration syntaxCopy(Dsymbol s)
+    {
+        //printf("TypedefDeclaration::syntaxCopy()\n");
+        TypedefDeclaration td = new TypedefDeclaration(loc, ident, this.basetype.syntaxCopy());
+        return td;
+    }
+
+    override const(char)* kind() const
+    {
+        return "alias"; // FIXME
+    }
+
+    override Type getType()
+    {
+        return type;
+    }
+
+    override inout(TypedefDeclaration) isTypedefDeclaration() inout
+    {
+        return this;
+    }
+
+    override void accept(Visitor v)
+    {
+        v.visit(this);
+    }
+
+}
+
+
 /***********************************************************
  * https://dlang.org/spec/declaration.html#AliasDeclaration
  */
