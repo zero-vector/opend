@@ -1064,6 +1064,12 @@ extern (C++) void Type_toDt(Type t, ref DtBuilder dtb, bool isCtype = false)
             StructDeclaration_toDt(t.isTypeStruct().sym, dtb);
             break;
 
+        case Ttypedef:
+            // Expression_toDt(t.isTypeTypedef().sym, dtb);
+            // Expression_toDt(t.defaultInit(Loc.initial, isCtype), dtb);
+            Type_toDt(t.isTypeTypedef.sym.basetype, dtb, isCtype);
+            break;
+
         default:
             Expression_toDt(t.defaultInit(Loc.initial, isCtype), dtb);
             break;

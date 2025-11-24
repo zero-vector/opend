@@ -1558,6 +1558,13 @@ public tym_t totym(Type tx)
             break;
         }
 
+        case Ttypedef:
+        {
+            Type tb = (tx.isTypeTypedef()).sym.basetype;
+            t = totym(tb);
+            break;
+        }
+
         case Tident:
         case Ttypeof:
         case Tmixin:
