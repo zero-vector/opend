@@ -8815,6 +8815,20 @@ private extern(C++) class SearchVisitor : Visitor
         visit(cast(ScopeDsymbol)em);
     }
 
+    override void visit(TypedefDeclaration td)
+    {
+        //printf("%s.TypedeDeclaration::search('%s')\n", em.toChars(), ident.toChars());
+        // if (em._scope)
+        // {
+        //     // Try one last time to resolve this enum
+        //     dsymbolSemantic(em, em._scope);
+        // }
+
+        visit(cast(Dsymbol)td.basetype);
+    }
+
+
+
     override void visit(Package pkg)
     {
         //printf("%s Package.search('%s', flags = x%x)\n", pkg.toChars(), ident.toChars(), flags);

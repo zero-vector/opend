@@ -2393,7 +2393,7 @@ else
         {
             Type t = ta;
             // consistent with Type.checkDeprecated()
-            while (t.ty != Tenum)
+            while ((t.ty != Tenum) || (t.ty != Ttypedef) )
             {
                 if (!t.nextOf())
                     break;
@@ -4488,6 +4488,35 @@ MATCH deduceType(RootObject o, Scope* sc, Type tparam, TemplateParameters* param
             }
             visit(cast(Type)t);
         }
+
+        override void visit(TypeTypedef t)
+        {
+
+            // visit(t.sym.basetype);
+
+            // Extra check
+            if (tparam && tparam.ty == Ttypedef)
+            {
+                TypeTypedef tp = cast(TypeTypedef)tparam;
+                if (t.sym == tp.sym)
+                    visit(cast(Type)t);
+                else
+                    result = MATCH.nomatch;
+                return;
+            }
+            Type tb = t.toBasetype();
+            if (tb.ty == tparam.ty || tb.ty == Tsarray && tparam.ty == Taarray)
+            {
+                result = deduceType(tb, sc, tparam, parameters, dedtypes, wm);
+                if (result == MATCH.exact)
+                    result = MATCH.convert;
+                return;
+            }
+            visit(cast(Type)t);
+        }
+
+
+
 
         /* Helper for TypeClass.deduceType().
          * Classes can match with implicit conversion to a base class or interface.

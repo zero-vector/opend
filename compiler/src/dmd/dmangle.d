@@ -232,7 +232,7 @@ private immutable char[TMAX] mangleChar =
     Tmixin       : '@',
     Ttag         : '@',
     Tnoreturn    : '@',         // becomes 'Nn'
-    Ttypedef     : 'T',
+    Ttypedef     : '?',         // NOTE(mojo): Idk, 'T' is used for templates
 ];
 
 unittest
@@ -675,7 +675,15 @@ public:
     }
 
     override void visit(TypedefDeclaration td) {
-        mangleType(td.type, 0, *buf, *backref);
+        // printf("visit = '%s'\n", td.type.toChars());
+
+        // mangleType(td.basetype, 0, *buf, *backref);
+        // mangleType(td.type, 0, *buf, *backref);
+
+        buf.writestring("_D");
+        mangleDecl(td);
+        // mangleType(td.basetype, 0, *buf, *backref);
+
     }
 
     override void visit(Declaration d)

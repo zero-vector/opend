@@ -728,6 +728,24 @@ void toObjFile(Dsymbol ds, bool multiobj)
                 objmod.export_symbol(s, 0);
         }
 
+
+        override void visit(TypedefDeclaration td)
+        {
+            if (td.semanticRun >= PASS.obj)  // already written
+                return;
+            //printf("EnumDeclaration.toObjFile('%s')\n", td.toChars());
+
+            if (td.errors || td.type.ty == Terror)
+            {
+                .error(td.loc, "%s `%s` had semantic errors when compiling", td.kind, td.toPrettyChars);
+                return;
+            }
+
+            // FIXME
+
+            td.semanticRun = PASS.obj;
+        }
+
         override void visit(EnumDeclaration ed)
         {
             if (ed.semanticRun >= PASS.obj)  // already written

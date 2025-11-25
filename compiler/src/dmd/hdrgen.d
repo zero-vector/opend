@@ -4230,10 +4230,13 @@ private void typeToBufferx(Type t, ref OutBuffer buf, ref HdrGenState hgs)
 
     void visitTypeTypedef(TypeTypedef t)
     {
-        buf.writestring("typedef ");
+        // typeToBuffer(t.sym.basetype, t.sym.ident, buf, hgs);
+        // FIXME
         buf.writestring(t.sym.ident.toString());
-        // buf.writestring(" = ");
-        // buf.writestring(t.sym.basetype.toString());
+
+        // buf.writestring(":");
+        // visitWithMask(t.sym.basetype, t.mod, buf, hgs);
+
     }
 
     void visitTag(TypeTag t)

@@ -3131,7 +3131,7 @@ extern (C++) final class TypeBasic : Type
 
     override MATCH implicitConvTo(Type to)
     {
-        //printf("TypeBasic::implicitConvTo(%s) from %s\n", to.toChars(), toChars());
+        // printf("TypeBasic::implicitConvTo(%s) from %s\n", to.toChars(), toChars());
         if (this == to)
             return MATCH.exact;
 
@@ -3170,6 +3170,11 @@ extern (C++) final class TypeBasic : Type
             }
             else
                 return MATCH.nomatch;
+        }
+        else if (auto td = to.isTypeTypedef())
+        {
+            // TypedefDeclaration td = td.sym;
+            return implicitConvTo(td.sym.basetype);
         }
         else
             tob = to.isTypeBasic();
@@ -5767,7 +5772,7 @@ extern (C++) final class TypeTypedef : Type
         if (sym.inuse)
         {
             // FIXME
-            // sym.error("circular definition");
+            // error("circular definition");
             sym.basetype = new TypeError();
             return new TypeError();
         }

@@ -202,6 +202,11 @@ extern (C++) type* Type_toCtype(Type t)
         return tr;
     }
 
+    static type* visitTypedef(TypeTypedef t)
+    {
+        return Type_toCtype(t.sym.basetype);
+    }
+
     static type* visitEnum(TypeEnum t)
     {
         //printf("TypeEnum::toCtype() '%s'\n", t.sym.toChars());
@@ -294,16 +299,19 @@ extern (C++) type* Type_toCtype(Type t)
     type* tr;
     switch (t.ty)
     {
-        default:        tr = visit        (t);                  break;
-        case Tsarray:   tr = visitSArray  (t.isTypeSArray());   break;
-        case Tarray:    tr = visitDArray  (t.isTypeDArray());   break;
-        case Taarray:   tr = visitAArray  (t.isTypeAArray());   break;
-        case Tpointer:  tr = visitPointer (t.isTypePointer());  break;
-        case Tfunction: tr = visitFunction(t.isTypeFunction()); break;
-        case Tdelegate: tr = visitDelegate(t.isTypeDelegate()); break;
-        case Tstruct:   tr = visitStruct  (t.isTypeStruct());   break;
-        case Tenum:     tr = visitEnum    (t.isTypeEnum());     break;
-        case Tclass:    tr = visitClass   (t.isTypeClass());    break;
+        default:        tr = visit         (t);                  break;
+        case Tsarray:   tr = visitSArray   (t.isTypeSArray());   break;
+        case Tarray:    tr = visitDArray   (t.isTypeDArray());   break;
+        case Taarray:   tr = visitAArray   (t.isTypeAArray());   break;
+        case Tpointer:  tr = visitPointer  (t.isTypePointer());  break;
+        case Tfunction: tr = visitFunction (t.isTypeFunction()); break;
+        case Tdelegate: tr = visitDelegate (t.isTypeDelegate()); break;
+        case Tstruct:   tr = visitStruct   (t.isTypeStruct());   break;
+        case Tenum:     tr = visitEnum     (t.isTypeEnum());     break;
+        case Tclass:    tr = visitClass    (t.isTypeClass());    break;
+        case Ttypedef:  tr = visitTypedef  (t.isTypeTypedef());  break;
+
+
     }
 
     t.ctype = tr;

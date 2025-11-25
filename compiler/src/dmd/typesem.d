@@ -1120,6 +1120,7 @@ extern(C++) bool hasPointers(Type t)
     bool visitDelegate(TypeDelegate _)  { return true; }
     bool visitClass(TypeClass _)        { return true; }
     bool visitEnum(TypeEnum t)          { return t.memType().hasPointers(); }
+    bool visitTypedef(TypeTypedef t)          { return t.sym.basetype.hasPointers(); }
 
     /* Although null isn't dereferencable, treat it as a pointer type for
      * attribute inference, generic code, etc.
@@ -1168,6 +1169,8 @@ extern(C++) bool hasPointers(Type t)
         case Tenum:         return visitEnum(t.isTypeEnum());
         case Tclass:        return visitClass(t.isTypeClass());
         case Tnull:         return visitNull(t.isTypeNull());
+        case Ttypedef:      return visitTypedef(t.isTypeTypedef());
+
     }
 }
 
@@ -2415,7 +2418,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
         return mtype.deco ? mtype : merge(mtype);
     }
 
-    Type visitTypeTypedef(TypeTypedef mtype)
+    Type visitTypedef(TypeTypedef mtype)
     {
         if (mtype.deco)
             return mtype;
@@ -2423,10 +2426,14 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
 
         // printf("TypeTypedef::semantic() %s\n", mtype.toChars());
         // FIXME: WTF, segfault
-        //if (mtype.sym) mtype.sym.dsymbolSemantic(sc);
+        // if (mtype.sym) mtype.sym.dsymbolSemantic(sc);
+
+        mtype.sym.basetype = typeSemantic(mtype.sym.basetype, loc, sc);
+        // merge(mtype.sym.basetype);
 
         // return merge(mtype.sym.basetype);
         return merge(mtype);
+        // return mtype.sym.basetype;
     }
 
     Type visitClass(TypeClass mtype)
@@ -2746,7 +2753,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
         case Tslice:     return visitSlice(type.isTypeSlice());
         case Tmixin:     return visitMixin(type.isTypeMixin());
         case Ttag:       return visitTag(type.isTypeTag());
-        case Ttypedef:   return visitTypeTypedef(type.isTypeTypedef());
+        case Ttypedef:   return visitTypedef(type.isTypeTypedef());
     }
 }
 
@@ -3232,12 +3239,42 @@ Expression getProperty(Type t, Scope* scope_, const ref Loc loc, Identifier iden
         return e;
     }
 
+    Expression visitTypedef(TypeTypedef td)
+    {
+
+        // printf("TypeTypedef::getProperty(type = '%s', ident = '%s')\n", td.toChars(), ident.toChars());
+
+        Expression e;
+
+        if (ident == Id._init)
+        {
+            e = td.defaultInitLiteral(loc);
+        }
+        else if (ident == Id.stringof)
+        {
+            e = new StringExp(loc, td.toString());
+            Scope sc;
+            e = e.expressionSemantic(&sc);
+        }
+        else if (ident == Id._mangleof)
+        {
+            e = visitType(td);
+        }
+        else
+        {
+            // printf(">> TypeTypedef::getProperty(type = '%s', ident = '%s')\n", td.sym.basetype.toChars(), td.sym.basetype.deco);
+            e = getProperty(td.sym.basetype, scope_, loc, ident, flag);
+            // e = visitType(td.sym.basetype);
+        }
+        return e;
+    }
+
     Expression visitTuple(TypeTuple mt)
     {
         Expression e;
         static if (LOGDOTEXP)
         {
-            printf("TypeTuple::getProperty(type = '%s', ident = '%s')\n", mt.toChars(), ident.toChars());
+            printf("TypeTuple::getProperty(type = '%s', deco = '%s')\n", mt.toChars(), ident.toChars());
         }
         if (ident == Id.length)
         {
@@ -3265,10 +3302,13 @@ Expression getProperty(Type t, Scope* scope_, const ref Loc loc, Identifier iden
                                 visitBasic(cast(TypeBasic)t) :
                                 visitType(t);
 
-        case Terror:    return visitError (t.isTypeError());
-        case Tvector:   return visitVector(t.isTypeVector());
-        case Tenum:     return visitEnum  (t.isTypeEnum());
-        case Ttuple:    return visitTuple (t.isTypeTuple());
+        case Terror:    return visitError  (t.isTypeError());
+        case Tvector:   return visitVector (t.isTypeVector());
+        case Tenum:     return visitEnum   (t.isTypeEnum());
+        case Ttuple:    return visitTuple  (t.isTypeTuple());
+        case Ttypedef:  return visitTypedef (t.isTypeTypedef());
+
+
     }
 }
 
@@ -3722,6 +3762,11 @@ void resolve(Type mt, const ref Loc loc, Scope* sc, out Expression pe, out Type 
         }
     }
 
+    void visitTypedef(TypeTypedef td) {
+        // visitType(td);
+        return returnType((td.sym.basetype).addMod(mt.mod));
+    }
+
     void visitSlice(TypeSlice mt)
     {
         mt.next.resolve(loc, sc, pe, pt, ps, intypeid);
@@ -3938,6 +3983,7 @@ void resolve(Type mt, const ref Loc loc, Scope* sc, out Expression pe, out Type 
         case Tslice:    visitSlice     (mt.isTypeSlice());      break;
         case Tmixin:    visitMixin     (mt.isTypeMixin());      break;
         case Ttraits:   visitTraits    (mt.isTypeTraits());     break;
+        case Ttypedef:  visitTypedef   (mt.isTypeTypedef());    break;
     }
 }
 
@@ -4800,6 +4846,43 @@ Expression dotExp(Type mt, Scope* sc, Expression e, Identifier ident, DotExpFlag
         return m.getVarExp(e.loc, sc);
     }
 
+
+    Expression visitTypedef(TypeTypedef mt)
+    {
+        static if (LOGDOTEXP)
+        {
+            printf("TypeTypedef::dotExp(e = '%s', ident = '%s') '%s'\n", e.toChars(), ident.toChars(), mt.toChars());
+        }
+
+        // FIXME
+        // https://issues.dlang.org/show_bug.cgi?id=14010
+        // if (ident == Id._mangleof)
+        // {
+        //     return mt.getProperty(sc, e.loc, ident, flag & 1);
+        // }
+
+        if (mt.sym.semanticRun < PASS.semanticdone)
+            mt.sym.dsymbolSemantic(null);
+
+        auto res = dotExp(mt.sym.basetype, sc, e, ident, flag);
+
+        if (res) {
+            // printf("TypeTypedef::dotExp(res = '%s', ident = '%s') '%s'\n", res.toChars(), ident.toChars(), mt.toChars());
+        }
+
+        if (!(flag & 1) && !res)
+        {
+            // TODO: error msg
+            return ErrorExp.get();
+        }
+
+        return res;
+
+
+    }
+
+
+
     Expression visitClass(TypeClass mt)
     {
         Dsymbol s;
@@ -5280,6 +5363,7 @@ Expression dotExp(Type mt, Scope* sc, Expression e, Identifier ident, DotExpFlag
         case Treference: return visitReference(mt.isTypeReference());
         case Tdelegate:  return visitDelegate (mt.isTypeDelegate());
         case Tclass:     return visitClass    (mt.isTypeClass());
+        case Ttypedef:   return visitTypedef  (mt.isTypeTypedef());
 
         default:         return mt.isTypeBasic()
                                 ? visitBasic(cast(TypeBasic)mt)
@@ -5406,6 +5490,20 @@ extern (C++) Expression defaultInit(Type mt, const ref Loc loc, const bool isCfi
         return e;
     }
 
+    Expression visitTypedef(TypeTypedef mt)
+    {
+        static if (LOGDEFAULTINIT)
+        {
+            printf("TypeEnum::defaultInit() '%s'\n", mt.toChars());
+        }
+
+        Expression e = mt.sym.basetype.defaultInitLiteral(loc);
+        e = e.copy();
+        e.loc = loc;
+        e.type = mt; // to deal with const, immutable, etc., variants
+        return e;
+    }
+
     Expression visitTuple(TypeTuple mt)
     {
         static if (LOGDEFAULTINIT)
@@ -5449,6 +5547,8 @@ extern (C++) Expression defaultInit(Type mt, const ref Loc loc, const bool isCfi
         case Tstruct:   return visitStruct  (mt.isTypeStruct());
         case Tenum:     return visitEnum    (mt.isTypeEnum());
         case Ttuple:    return visitTuple   (mt.isTypeTuple());
+        case Ttypedef:  return visitTypedef (mt.isTypeTypedef());
+
 
         case Tnull:     return new NullExp(Loc.initial, Type.tnull);
 
