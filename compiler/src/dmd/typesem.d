@@ -549,6 +549,51 @@ extern (D) MATCH callMatch(TypeFunction tf, Type tthis, ArgumentList argumentLis
         match = MATCH.convert; // match ... with a "conversion" match level
     }
 
+    // NOTE(mojo): if we dont have nparams to match, lets see if we can not expand __Tuples
+    // FIXME: `!parameterList.hasDefaultArgs` is not a good check
+    if (parameterList.varargs == VarArg.none && nparams > argumentList.length && !parameterList.hasDefaultArgs)
+    {
+        // First Depth Expand
+        for (size_t i = 0; i < argumentList.arguments.length; i++) {
+            auto arg = (*argumentList.arguments)[i];
+            if (auto ts = arg.type.isTypeStruct()) {
+                // FIXME `__Tuple` this is prolly not enough!!!
+                if (ts.sym.ident == Id.__Tuple) {
+                    Expressions* args2 = new Expressions();
+                    args2.setDim(1);
+                    (*args2)[0] = dotExp(ts, sc, arg, Id._tupleof, DotExpFlag.none);
+                    expandTuples(args2);
+
+                    // better safe then sorry
+                    if (args2) {
+                        argumentList.arguments.remove(i);
+                        argumentList.arguments.insert(i, args2);
+                        i += (args2.length - 1);
+                    }
+                }
+            }
+        }
+
+        // EAGER expand every tuple
+        // foreach(i, ref arg; *argumentList.arguments) {
+        //     if (auto ts = arg.type.isTypeStruct) {
+        //         // FIXME `__Tuple` this is prolly not enough!!!
+        //         if (ts.sym.ident == Id.__Tuple) {
+
+        //             Expressions* args2 = new Expressions();
+        //             args2.setDim(1);
+        //             (*args2)[0] = dotExp(ts, sc, arg, Id._tupleof, DotExpFlag.none);
+        //             expandTuples(args2);
+
+        //             argumentList.arguments.remove(i);
+        //             argumentList.arguments.insert(i, args2);
+        //             // goto REPEAT;
+        //             break;
+        //         }
+        //     }
+        // }
+    }
+
     // https://issues.dlang.org/show_bug.cgi?id=22997
     if (parameterList.varargs == VarArg.none && nparams > argumentList.length && !parameterList.hasDefaultArgs)
     {

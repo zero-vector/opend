@@ -452,6 +452,8 @@ immutable Msgtable[] msgtable =
     { "outp"},
     { "outpl"},
     { "outpw"},
+    { "__tuple"},
+    { "__Tuple"},
 
     // Traits
     { "isAbstractClass" },

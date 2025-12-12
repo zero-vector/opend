@@ -9821,6 +9821,53 @@ version (IN_LLVM)
             return;
         }
 
+        if (!e.allowCommaExp && !e.isGenerated) {
+
+            Expressions* args2 = new Expressions();
+
+            // printf("CommaExp() 1 : %s\n", e.e1.toChars());
+            // printf("CommaExp() 2 : %s\n", e.e2.toChars());
+
+            if (e.e2.isCommaExp()) {
+                auto ex = e.e2;
+                while (ex.op == EXP.comma)
+                {
+                    args2.push(ex.isCommaExp().e2);
+                    ex = ex.isCommaExp().e1;
+                }
+                args2.push(ex);
+            }
+            else {
+                args2.push(e.e2);
+            }
+
+            if (e.e1.isCommaExp()) {
+                auto ex = e.e1;
+                while (ex.op == EXP.comma)
+                {
+                    args2.push(ex.isCommaExp().e2);
+                    ex = ex.isCommaExp().e1;
+                }
+                args2.push(ex);
+            }
+            else {
+                args2.push(e.e1);
+            }
+
+
+            auto args = new Expressions();
+            foreach_reverse(arg; *args2) {
+                args.push(arg);
+            }
+
+            // printf("args2 : %s\n", args2.toChars());
+            // printf("args : %s\n", args.toChars());
+
+            auto ce = new CallExp(e.loc, new IdentifierExp(e.loc, Id.__tuple), args);
+            result = ce.expressionSemantic(sc);
+            return;
+        }
+
         // Allow `((a,b),(x,y))`
         if (e.allowCommaExp)
         {
